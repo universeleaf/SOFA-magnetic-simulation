@@ -1,0 +1,3130 @@
+{
+  "source": "guidewire_scene\\assets\\centerline\\vessel_centerline_transformed.npy",
+  "junction_cluster": 1,
+  "branches": [
+    {
+      "segment_id": 0,
+      "file": "extracted_paths\\branches\\branch_seg0.npy",
+      "start_distal": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 317.98984192805705
+    },
+    {
+      "segment_id": 2,
+      "file": "extracted_paths\\branches\\branch_seg2.npy",
+      "start_distal": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 234.30348217072097
+    },
+    {
+      "segment_id": 4,
+      "file": "extracted_paths\\branches\\branch_seg4.npy",
+      "start_distal": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 251.8225487759453
+    },
+    {
+      "segment_id": 6,
+      "file": "extracted_paths\\branches\\branch_seg6.npy",
+      "start_distal": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 202.14750852270876
+    },
+    {
+      "segment_id": 8,
+      "file": "extracted_paths\\branches\\branch_seg8.npy",
+      "start_distal": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 216.45897356610715
+    },
+    {
+      "segment_id": 11,
+      "file": "extracted_paths\\branches\\branch_seg11.npy",
+      "start_distal": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 375.5323913162192
+    },
+    {
+      "segment_id": 13,
+      "file": "extracted_paths\\branches\\branch_seg13.npy",
+      "start_distal": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 360.6656174159368
+    },
+    {
+      "segment_id": 15,
+      "file": "extracted_paths\\branches\\branch_seg15.npy",
+      "start_distal": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 179.6978334261459
+    },
+    {
+      "segment_id": 20,
+      "file": "extracted_paths\\branches\\branch_seg20.npy",
+      "start_distal": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 347.3878712904679
+    },
+    {
+      "segment_id": 23,
+      "file": "extracted_paths\\branches\\branch_seg23.npy",
+      "start_distal": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 392.48537327549104
+    },
+    {
+      "segment_id": 25,
+      "file": "extracted_paths\\branches\\branch_seg25.npy",
+      "start_distal": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 139.42691786603493
+    },
+    {
+      "segment_id": 27,
+      "file": "extracted_paths\\branches\\branch_seg27.npy",
+      "start_distal": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 279.64418093017895
+    },
+    {
+      "segment_id": 29,
+      "file": "extracted_paths\\branches\\branch_seg29.npy",
+      "start_distal": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 212.68313540132772
+    },
+    {
+      "segment_id": 31,
+      "file": "extracted_paths\\branches\\branch_seg31.npy",
+      "start_distal": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end_junction": [
+        -24.921646,
+        17.246588,
+        21.609556
+      ],
+      "length_mm": 39.972850247837584
+    }
+  ],
+  "routes": [
+    {
+      "from_segment": 0,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg2.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 547.2491299873687
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg4.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 565.6557273333844
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg6.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 515.7378315528117
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg8.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 529.3778707202152
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg11.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 688.8843319452668
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg13.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 673.3351397747768
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg15.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 494.2458397619207
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg20.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 661.34089558611
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg23.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 705.2540026508906
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg25.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 454.32578390279923
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg27.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 594.277919009435
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg29.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 526.5635604687104
+    },
+    {
+      "from_segment": 0,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg0_to_seg31.npy",
+      "start": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 355.8568925205255
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg0.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 547.2491299873692
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg4.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 481.09557084652187
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg6.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 432.23257474899225
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg8.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 445.7289464331992
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg11.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 605.1272673621291
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg13.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 589.571137517907
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg15.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 410.36757182003043
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg20.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 577.5900175768783
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg23.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 621.5219207158577
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg25.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 370.66410251350914
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg27.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 510.52528124707663
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg29.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 442.88786640445613
+    },
+    {
+      "from_segment": 2,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg2_to_seg31.npy",
+      "start": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 272.26916465415025
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg0.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 565.6557273333856
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg2.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 481.0955708465218
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg6.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 450.6920055730776
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg8.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 463.1554820950983
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg11.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 622.8265457926166
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg13.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 607.2059858481105
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg15.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 428.1196495509898
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg20.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 595.2608761703593
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg23.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 639.1005984581346
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg25.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 388.0758545911996
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg27.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 528.1790374096108
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg29.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 460.25856155542664
+    },
+    {
+      "from_segment": 4,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg4_to_seg31.npy",
+      "start": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 289.6640689267419
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg0.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 515.7378315528108
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg2.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 432.2325747489925
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg4.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 450.69200557307767
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg8.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 414.31388076068197
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg11.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 573.8887346764143
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg13.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 558.3145622635768
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg15.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 379.27307546763546
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg20.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 546.3393871870712
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg23.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 590.2217201604593
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg25.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 339.31600784318664
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg27.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 479.292767584492
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg29.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 411.4668399039209
+    },
+    {
+      "from_segment": 6,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg6_to_seg31.npy",
+      "start": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 240.27278441455843
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg0.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 529.3778707202156
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg2.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 445.7289464331993
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg4.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 463.155482095098
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg6.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 414.31388076068157
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg11.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 587.0482305401981
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg13.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 571.4323265794725
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg15.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 392.4217461494524
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg20.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 559.4873104059734
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg23.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 603.4077731596916
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg25.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 352.6133222944629
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg27.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 492.01869892611325
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg29.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 424.8078969508942
+    },
+    {
+      "from_segment": 8,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg8_to_seg31.npy",
+      "start": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 254.3799249474982
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg0.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 688.8843319452676
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg2.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 605.1272673621282
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg4.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 622.8265457926148
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg6.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 573.8887346764144
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg8.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 587.0482305401983
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg13.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 730.6644654574739
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg15.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 551.6866161198221
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg20.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 718.8601869529169
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg23.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 762.5265546570135
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg25.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 511.5987045316395
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg27.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 651.7667950701397
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg29.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 583.6253962531375
+    },
+    {
+      "from_segment": 11,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg11_to_seg31.npy",
+      "start": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 413.0664518022518
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg0.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 673.3351397747782
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg2.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 589.5711375179067
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg4.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 607.2059858481102
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg6.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 558.3145622635772
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg8.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 571.4323265794727
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg11.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 730.6644654574749
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg15.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 536.4646653780703
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg20.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 703.5080470766466
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg23.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 746.6426960154987
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg25.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 497.1430344053326
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg27.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 636.136439745071
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg29.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 568.1385337692399
+    },
+    {
+      "from_segment": 13,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg13_to_seg31.npy",
+      "start": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 398.0057003977175
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg0.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 494.24583976192133
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg2.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 410.36757182003055
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg4.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 428.11964955098944
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg6.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 379.2730754676353
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg8.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 392.42174614945293
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg11.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 551.6866161198229
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg13.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 536.4646653780696
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg20.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 524.3736378436615
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg23.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 568.41763658425
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg25.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 317.1546670210691
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg27.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 457.02665363214925
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg29.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 389.43292196051885
+    },
+    {
+      "from_segment": 15,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg15_to_seg31.npy",
+      "start": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 218.38722196697123
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg0.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 661.34089558611
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg2.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 577.5900175768782
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg4.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 595.2608761703588
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg6.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 546.3393871870716
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg8.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 559.4873104059736
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg11.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 718.8601869529168
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg13.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 703.5080470766454
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg15.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 524.3736378436615
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg23.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 734.969515047994
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg25.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 484.318287795346
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg27.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 624.2105128599071
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg29.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 556.3596153761752
+    },
+    {
+      "from_segment": 20,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg20_to_seg31.npy",
+      "start": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 385.62209894325514
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg0.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 705.2540026508917
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg2.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 621.5219207158577
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg4.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 639.1005984581342
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg6.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 590.2217201604604
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg8.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 603.4077731596915
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg11.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 762.5265546570142
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg13.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 746.6426960154976
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg15.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 568.4176365842507
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg20.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 734.9695150479937
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg25.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 528.1152693273622
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg27.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 668.0387766449359
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg29.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 600.1512477040368
+    },
+    {
+      "from_segment": 23,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg23_to_seg31.npy",
+      "start": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 429.98970934062567
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg0.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 454.3257839027996
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg2.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 370.6641025135094
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg4.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 388.0758545911999
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg6.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 339.3160078431867
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg8.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 352.613322294463
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg11.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 511.59870453163956
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg13.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 497.1430344053331
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg15.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 317.1546670210693
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg20.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 484.3182877953461
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg23.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 528.1152693273617
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg27.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 416.9533038906109
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg29.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 350.2358874244312
+    },
+    {
+      "from_segment": 25,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg25_to_seg31.npy",
+      "start": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 178.60376893532782
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg0.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 594.277919009436
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg2.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 510.5252812470758
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg4.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 528.1790374096108
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg6.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 479.2927675844916
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg8.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 492.018698926114
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg11.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 651.7667950701391
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg13.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 636.1364397450711
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg15.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 457.02665363214976
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg20.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 624.2105128599075
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg23.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 668.0387766449352
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg25.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 416.953303890611
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg29.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 489.1199558004978
+    },
+    {
+      "from_segment": 27,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg27_to_seg31.npy",
+      "start": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 318.3960061915859
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg0.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 526.5635604687106
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg2.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 442.8878664044562
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg4.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 460.25856155542664
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg6.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 411.4668399039207
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg8.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 424.8078969508943
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg11.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 583.6253962531371
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg13.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 568.1385337692392
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg15.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 389.4329219605191
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg20.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 556.3596153761763
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg23.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 600.1512477040362
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg25.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 350.23588742443155
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg27.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 489.1199558004975
+    },
+    {
+      "from_segment": 29,
+      "to_segment": 31,
+      "file": "extracted_paths\\routes\\route_seg29_to_seg31.npy",
+      "start": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "end": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "length_mm": 251.17059693121294
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 0,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg0.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        49.834576,
+        223.775894,
+        19.086054
+      ],
+      "length_mm": 355.8568925205249
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 2,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg2.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        36.920689,
+        161.730698,
+        45.895691
+      ],
+      "length_mm": 272.2691646541505
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 4,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg4.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        30.480337,
+        174.401657,
+        34.516441
+      ],
+      "length_mm": 289.664068926742
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 6,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg6.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        11.916247,
+        156.497467,
+        36.44268
+      ],
+      "length_mm": 240.27278441455834
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 8,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg8.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        14.276977,
+        144.582153,
+        47.212059
+      ],
+      "length_mm": 254.37992494749827
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 11,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg11.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        20.139847,
+        17.863264,
+        16.331793
+      ],
+      "length_mm": 413.066451802252
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 13,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg13.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        24.20706,
+        53.664959,
+        22.756319
+      ],
+      "length_mm": 398.0057003977172
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 15,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg15.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        -1.736808,
+        148.349426,
+        30.35207
+      ],
+      "length_mm": 218.38722196697123
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 20,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg20.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        -16.301979,
+        17.494051,
+        3.629404
+      ],
+      "length_mm": 385.6220989432553
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 23,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg23.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        12.22068,
+        16.835373,
+        -0.889325
+      ],
+      "length_mm": 429.98970934062555
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 25,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg25.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        -11.510758,
+        129.462372,
+        44.818325
+      ],
+      "length_mm": 178.60376893532785
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 27,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg27.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        -54.726448,
+        229.180374,
+        40.49411
+      ],
+      "length_mm": 318.3960061915861
+    },
+    {
+      "from_segment": 31,
+      "to_segment": 29,
+      "file": "extracted_paths\\routes\\route_seg31_to_seg29.npy",
+      "start": [
+        -22.739002,
+        54.61599,
+        30.095253
+      ],
+      "end": [
+        -44.72258,
+        158.639893,
+        36.660152
+      ],
+      "length_mm": 251.17059693121305
+    }
+  ]
+}

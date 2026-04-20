@@ -1,0 +1,74 @@
+kap 20
+tau 10
+tubeRadius 4e-3
+helixradius 0.1
+helixpitch 0.02
+rodRadius 0.25e-3
+RodLength 250e-3
+youngM 4e6
+noMagYoungM 50e6
+numVertices 201
+Poisson 0.5
+deltaTime 3e-3
+totalTime 1000000.0
+speed 0.001
+tol 1.0e-3
+stol 1.0e-3
+maxIter 101
+density 2400.0
+gVector 0.0 0.0 0.0
+baVector 0.0 0.0 0.0
+brVector 128e3 0.0 0.0
+muZero 1
+saveData 1
+viscosity 0.004
+render 1
+scaleRender 5.0
+delta 1e-4
+k_scaler 1
+col_limit 0.1e-3
+mu 0.05
+nu 1e-4
+bc 0.5
+bv_load 1e-2
+bv_unload 5e-2
+
+Bfixed 0.04
+optimizationTubeIndexThreshold 100
+
+# optTriggerDistance is DEPRECATED (replaced by deviation trigger)
+optTriggerDistance 0.3e-3
+
+# Deviation-based trigger (hysteresis)
+triggerOnRatio 1.00
+triggerOffRatio 0.80
+triggerCooldownSteps 4
+
+# Virtual tube (adaptive: xi = clamp(freeScale*freeR + offset, floor, max))
+# Old params kept for compat but unused:
+virtualTubeScale 0.15
+virtualTubeMin 0.15e-3
+# New adaptive params:
+virtualTubeFreeScale 0.18
+virtualTubeOffset 0.12e-3
+virtualTubeFloor 0.22e-3
+virtualTubeMax 0.65e-3
+
+wVirtualTip 0.6
+wRealTip 0.0
+wRealOther 0.05
+wDirCont 0.4
+
+initBlendTangent 0.05
+
+optDirFDStep 0.03
+muDir 8e-2
+maxOuterDirIter 3
+optDirLineSearchBeta 0.35
+optDirAlphaMin 0.02
+maxTurnAngleDeg 6
+maxTotalTurnAngleDeg 10
+dirImproveTol 5e-3
+dirStepTol 5e-3
+
+

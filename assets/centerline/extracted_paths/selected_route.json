@@ -1,0 +1,6 @@
+{
+  "selected_route_name": "right_outer_main",
+  "selected_route_file": "route_rightmost_lower_inlet_to_rightmost_upper_outlet.npy",
+  "reason": "restored the previous valid route because presentation routes must start at the lower inlet and end at an upper outlet",
+  "summary": "??????? -> ???????"
+}
