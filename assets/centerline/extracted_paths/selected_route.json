@@ -1,6 +1,6 @@
 {
-  "selected_route_name": "right_outer_main",
-  "selected_route_file": "route_rightmost_lower_inlet_to_rightmost_upper_outlet.npy",
-  "reason": "restored the previous valid route because presentation routes must start at the lower inlet and end at an upper outlet",
-  "summary": "??????? -> ???????"
+  "selected_route_name": "vessel_4_0108_full",
+  "selected_route_file": "route_vessel_4_0108_full.npy",
+  "reason": "auto-extracted, smoothed, and locally recentered full lower-inlet to upper-outlet route from vessel_centerline_4_0108.npy",
+  "summary": "完整主通路（下入口 -> 上出口，已平滑并重新居中）"
 }

@@ -349,8 +349,6 @@ Vec3 ExternalMagneticForceField::computeLookAheadTargetDirection(const VecCoord&
     const bool strictPhysicalTorqueOnly = d_strictPhysicalTorqueOnly.getValue();
     m_lastStrictEntrySteeringAlpha = static_cast<Real>(1.0);
     m_lastLocalForwardTangent = safeNormalize(d_baVectorRef.getValue(), kZAxis);
-    m_lastUpcomingTurnDeg = static_cast<Real>(0.0);
-    m_lastBendSeverity = static_cast<Real>(0.0);
     const Vec3 tipPos = kMToMm * coordCenter(positions.back());
     const Vec3 tipForward = positions.size() >= 2
         ? safeNormalize(coordCenter(positions.back()) - coordCenter(positions[positions.size() - 2]), safeNormalize(d_baVectorRef.getValue(), kZAxis))
@@ -646,10 +644,78 @@ Vec3 ExternalMagneticForceField::computeLookAheadTargetDirection(const VecCoord&
         *lookAheadPoint = lookAheadPointValue;
     const Vec3 forwardDir = safeNormalize(targetPoint - tipPos, tipForward);
     const Vec3 lookAheadDir = safeNormalize(lookAheadPointValue - tipPos, forwardDir);
-    m_lastLocalForwardTangent = lookAheadDir;
+    const Real prevUpcomingTurnDeg = m_lastUpcomingTurnDeg;
+    const Real prevBendSeverity = m_lastBendSeverity;
+    const Real steeringArcS = std::clamp(bestS + minForwardMm, static_cast<Real>(0.0), m_tubeCum.back());
+    const Vec3 localForwardTangent = interpolateTubeTangent(
+        steeringArcS,
+        std::max(static_cast<Real>(0.5), static_cast<Real>(0.35) * baseLookAhead),
+        nearestTangent);
+    const Real bendLookAheadMm = std::max(d_bendLookAheadDistance.getValue(), minForwardMm);
+    const Real bendNearWindowMm = std::clamp(
+        d_bendNearWindowDistance.getValue(),
+        minForwardMm,
+        bendLookAheadMm);
+    const Real bendNearS = std::clamp(bestS + bendNearWindowMm, static_cast<Real>(0.0), m_tubeCum.back());
+    const Real bendFarS = std::clamp(bestS + bendLookAheadMm, bendNearS, m_tubeCum.back());
+    const Vec3 bendNearTangent = interpolateTubeTangent(
+        bendNearS,
+        std::max(static_cast<Real>(0.5), static_cast<Real>(0.25) * bendNearWindowMm),
+        localForwardTangent);
+    const Vec3 bendFarTangent = interpolateTubeTangent(
+        bendFarS,
+        std::max(static_cast<Real>(0.5), static_cast<Real>(0.25) * std::max(bendLookAheadMm - bendNearWindowMm, bendNearWindowMm)),
+        bendNearTangent);
+    const Real upcomingTurnDeg = std::acos(std::clamp(
+        sofa::type::dot(bendNearTangent, bendFarTangent),
+        static_cast<Real>(-1.0),
+        static_cast<Real>(1.0))) * static_cast<Real>(180.0) / kPi;
+    const Real bendTurnMediumDeg = std::max(d_bendTurnMediumDeg.getValue(), static_cast<Real>(0.0));
+    const Real bendTurnHighDeg = std::max(d_bendTurnHighDeg.getValue(), bendTurnMediumDeg + static_cast<Real>(1.0e-3));
+    const Real bendSeverityRaw = std::clamp(
+        (upcomingTurnDeg - bendTurnMediumDeg) / (bendTurnHighDeg - bendTurnMediumDeg),
+        static_cast<Real>(0.0),
+        static_cast<Real>(1.0));
+    const bool previewHoldActive = (
+        barrierActiveNodes > 0u
+        || externalSurfaceContactActive
+        || tipOffsetMm > static_cast<Real>(0.60)
+        || (std::isfinite(minLumenClearanceMm) && minLumenClearanceMm < static_cast<Real>(0.60)));
+    const Real bendMemoryDecay = previewHoldActive
+        ? static_cast<Real>(0.96)
+        : static_cast<Real>(0.86);
+    const Real bendSeverity = std::max(
+        bendSeverityRaw,
+        std::clamp(bendMemoryDecay * prevBendSeverity, static_cast<Real>(0.0), static_cast<Real>(1.0)));
+    const Real heldUpcomingTurnDeg = std::max(
+        upcomingTurnDeg,
+        bendMemoryDecay * prevUpcomingTurnDeg);
+    const Real previewBlend = std::clamp(
+        static_cast<Real>(0.16)
+            + static_cast<Real>(0.36) * bendSeverity
+            + static_cast<Real>(0.20) * recoveryAlpha
+            + static_cast<Real>(0.10) * smoothstepRange(
+                tipOffsetMm,
+                static_cast<Real>(0.50),
+                static_cast<Real>(1.40)),
+        static_cast<Real>(0.0),
+        static_cast<Real>(0.62));
+    const Vec3 previewTargetTangent = safeNormalize(
+        (static_cast<Real>(1.0) - static_cast<Real>(0.55) * bendSeverity) * bendNearTangent
+            + static_cast<Real>(0.55) * bendSeverity * bendFarTangent,
+        bendNearTangent);
+    const Vec3 guidedTangent = previewBlend <= kEps
+        ? lookAheadDir
+        : safeNormalize(
+            (static_cast<Real>(1.0) - previewBlend) * lookAheadDir
+                + previewBlend * previewTargetTangent,
+            lookAheadDir);
+    m_lastLocalForwardTangent = guidedTangent;
+    m_lastUpcomingTurnDeg = heldUpcomingTurnDeg;
+    m_lastBendSeverity = bendSeverity;
     if (!hasForwardTarget)
-        return lookAheadDir;
-    return safeNormalize(static_cast<Real>(0.35) * forwardDir + static_cast<Real>(0.65) * lookAheadDir, lookAheadDir);
+        return guidedTangent;
+    return safeNormalize(static_cast<Real>(0.25) * forwardDir + static_cast<Real>(0.75) * guidedTangent, guidedTangent);
 }
 
 Vec3 ExternalMagneticForceField::computeNearestTubeTangentDirection(const VecCoord& positions) const
@@ -752,7 +818,14 @@ void ExternalMagneticForceField::computeMagneticForces(
         ) / std::max(edgeLenM, kEps);
         const Real dEdtheta = sofa::type::dot(coeff1 * current.m2 - coeff2 * current.m1, appliedBaVector);
         const Vec3 pairForceN = (area * edgeLenM / muZeroSafe) * dEde;
-        const Real twistTorqueNm = (area * edgeLenM / muZeroSafe) * dEdtheta;
+        // In the non-strict reduced safe path the translational pair-force and
+        // lateral assist already capture the desired bend. Keeping even a
+        // moderate axial-spin torque here still makes the short distal head show
+        // visible node-wise wringing that looks far less coherent than a metal
+        // guidewire tip. Leave only a very small residual twist authority in the
+        // safe path so the head bends, but does not corkscrew segment by segment.
+        const Real twistTorqueScale = strictPhysicalTorqueOnly ? static_cast<Real>(1.0) : static_cast<Real>(0.01);
+        const Real twistTorqueNm = twistTorqueScale * (area * edgeLenM / muZeroSafe) * dEdtheta;
         const Vec3 torqueNm = (area * edgeLenM / muZeroSafe) * magneticMoment.cross(appliedBaVector);
         Vec3 torqueCoupleForceN(static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(0.0));
         if (strictPhysicalTorqueOnly)
@@ -1204,6 +1277,108 @@ void ExternalMagneticForceField::addForce(const sofa::core::MechanicalParams* mp
     {
         const Vec3 momentDirection = safeNormalize(aggregateMoment, momentFallback);
         desiredBa = buildTorqueAwareFieldDirection(momentDirection, targetDirection, d_minTorqueSin.getValue(), nullptr);
+        const Vec3 safeForwardAxis = safeNormalize(m_lastLocalForwardTangent, nearestTangent);
+        const Vec3 guidancePointMm = ((lookAheadPoint - tipPosMm).norm() > kEps) ? lookAheadPoint : targetPoint;
+        const Vec3 guidancePullMm = projectLateral(safeForwardAxis, guidancePointMm - tipPosMm);
+        const Vec3 centerlinePullMm = projectLateral(safeForwardAxis, nearestPointMm - tipPosMm);
+        const Real guidancePullNormMm = guidancePullMm.norm();
+        const Real centerlinePullNormMm = centerlinePullMm.norm();
+        const Real safeOffsetNeed = smoothstepRange(
+            tipOffsetMm,
+            static_cast<Real>(0.18),
+            static_cast<Real>(0.85));
+        const Real safeClearanceNeed = std::isfinite(minLumenClearanceMm)
+            ? smoothstepRange(
+                static_cast<Real>(0.90) - minLumenClearanceMm,
+                static_cast<Real>(0.0),
+                static_cast<Real>(0.45))
+            : static_cast<Real>(0.0);
+        const Real safeBarrierNeed = smoothstepRange(
+            static_cast<Real>(barrierActiveNodes),
+            static_cast<Real>(1.0),
+            static_cast<Real>(4.0));
+        if (
+            guidancePullNormMm > static_cast<Real>(0.20)
+            && std::max(safeOffsetNeed, std::max(safeClearanceNeed, static_cast<Real>(0.35) * safeBarrierNeed)) > kEps
+        )
+        {
+            const Real guidanceSignAlpha = std::clamp(
+                static_cast<Real>(0.18)
+                    + static_cast<Real>(0.54)
+                        * std::max(safeOffsetNeed, std::max(safeClearanceNeed, static_cast<Real>(0.35) * safeBarrierNeed)),
+                static_cast<Real>(0.0),
+                static_cast<Real>(0.78));
+            desiredBa = enforceGuidanceLateralSign(
+                desiredBa,
+                safeForwardAxis,
+                guidancePullMm,
+                guidanceSignAlpha);
+        }
+        if (
+            centerlinePullNormMm > kEps
+            && std::max(safeOffsetNeed, std::max(safeClearanceNeed, safeBarrierNeed)) > kEps
+        )
+        {
+            const Real inwardSignAlpha = std::clamp(
+                static_cast<Real>(0.22)
+                    + static_cast<Real>(0.70)
+                        * std::max(safeOffsetNeed, std::max(safeClearanceNeed, safeBarrierNeed)),
+                static_cast<Real>(0.0),
+                static_cast<Real>(0.88));
+            desiredBa = enforceGuidanceLateralSign(
+                desiredBa,
+                safeForwardAxis,
+                centerlinePullMm,
+                inwardSignAlpha);
+        }
+        const Real safeSteeringNeed = std::clamp(
+            std::max(
+                std::max(safeOffsetNeed, safeClearanceNeed),
+                std::max(
+                    safeBarrierNeed,
+                    std::max(
+                        smoothstepRange(guidancePullNormMm, static_cast<Real>(0.20), static_cast<Real>(1.60)),
+                        static_cast<Real>(0.85) * smoothstepRange(centerlinePullNormMm, static_cast<Real>(0.15), static_cast<Real>(1.10))))),
+            static_cast<Real>(0.0),
+            static_cast<Real>(1.0));
+        if (m_hasAppliedBaVector && safeSteeringNeed > kEps)
+        {
+            const Vec3 heldBa = safeNormalize(m_appliedBaVector, desiredBa);
+            const Vec3 heldLateral = projectLateral(safeForwardAxis, heldBa);
+            const Real heldLateralNorm = heldLateral.norm();
+            Real sameSideAlpha = static_cast<Real>(1.0);
+            if (guidancePullNormMm > kEps && heldLateralNorm > kEps)
+            {
+                sameSideAlpha = std::clamp(
+                    static_cast<Real>(0.5)
+                        + static_cast<Real>(0.5)
+                            * sofa::type::dot(heldLateral / heldLateralNorm, guidancePullMm / guidancePullNormMm),
+                    static_cast<Real>(0.0),
+                    static_cast<Real>(1.0));
+            }
+            const Real currentAngleToTangent = std::acos(std::clamp(
+                sofa::type::dot(safeNormalize(desiredBa, nearestTangent), nearestTangent),
+                static_cast<Real>(-1.0),
+                static_cast<Real>(1.0)));
+            const Real heldAngleToTangent = std::acos(std::clamp(
+                sofa::type::dot(safeNormalize(heldBa, nearestTangent), nearestTangent),
+                static_cast<Real>(-1.0),
+                static_cast<Real>(1.0)));
+            const Real relaxMarginRad = static_cast<Real>(2.0) * kPi / static_cast<Real>(180.0);
+            if (sameSideAlpha > static_cast<Real>(0.35) && heldAngleToTangent > currentAngleToTangent + relaxMarginRad)
+            {
+                const Real holdAlpha = std::clamp(
+                    sameSideAlpha
+                        * (static_cast<Real>(0.22)
+                            + static_cast<Real>(0.48) * safeSteeringNeed
+                            + static_cast<Real>(0.08) * safeBarrierNeed),
+                    static_cast<Real>(0.0),
+                    static_cast<Real>(0.68));
+                desiredBa = safeNormalize(
+                    (static_cast<Real>(1.0) - holdAlpha) * desiredBa + holdAlpha * heldBa,
+                    desiredBa);
+            }
+        }
     }
     else if (hasMoment && strictPhysicalTorqueOnly)
     {
@@ -1512,6 +1687,43 @@ void ExternalMagneticForceField::addForce(const sofa::core::MechanicalParams* mp
                 }
             }
         }
+        // The strict steering stack above blends preview, torque-awareness,
+        // recenter release, and short-term memory. In some bend states that can
+        // still leave the final field with a small outward lateral sign even
+        // though the head is visibly eccentric and should be pulled back toward
+        // the centerline. Clamp the final lateral sign once more against the
+        // true centerline pull so the rendered / applied field never keeps
+        // steering outward when the tip offset already demands inward recovery.
+        if (centerlinePullNormMm > kEps)
+        {
+            const Real inwardSignNeed = std::clamp(
+                std::max(
+                    std::max(strictOffsetNeed, strictClearanceNeed),
+                    std::max(
+                        static_cast<Real>(0.85) * strictCenterlinePullNeed,
+                        std::max(
+                            static_cast<Real>(0.70) * recenteringAlpha,
+                            static_cast<Real>(0.35) * steeringHoldNeed)))
+                    + static_cast<Real>(0.18) * smoothstepRange(
+                        tipOffsetMm,
+                        static_cast<Real>(0.45),
+                        static_cast<Real>(1.25))
+                    + (barrierActiveNodes > 0u ? static_cast<Real>(0.12) : static_cast<Real>(0.0)),
+                static_cast<Real>(0.0),
+                static_cast<Real>(1.0));
+            if (inwardSignNeed > kEps)
+            {
+                const Real inwardSignAlpha = std::clamp(
+                    static_cast<Real>(0.20) + static_cast<Real>(0.72) * inwardSignNeed,
+                    static_cast<Real>(0.0),
+                    static_cast<Real>(0.92));
+                desiredBa = enforceGuidanceLateralSign(
+                    desiredBa,
+                    strictForwardAxis,
+                    centerlinePullMm,
+                    inwardSignAlpha);
+            }
+        }
     }
 
     const Real externalFieldScale = std::clamp(d_externalFieldScale.getValue(), static_cast<Real>(0.0), static_cast<Real>(1.0));
@@ -1559,12 +1771,27 @@ void ExternalMagneticForceField::addForce(const sofa::core::MechanicalParams* mp
     if (strictPhysicalTorqueOnly)
     {
         Real maxTurnRad = std::max(d_maxFieldTurnAngleDeg.getValue(), static_cast<Real>(0.0)) * kPi / static_cast<Real>(180.0);
-        if (timeScale > static_cast<Real>(1.0) + kEps)
-            maxTurnRad *= timeScale;
         const bool contactLike = (
             barrierActiveNodes > 0u
             || (std::isfinite(minLumenClearanceMm) && minLumenClearanceMm < static_cast<Real>(0.30))
         );
+        // Keep strict GUI steering wall-clock aware through the field ramp, but
+        // do not let a long render frame multiply the per-step turn cap into an
+        // effectively unbounded snap. That was showing up as head jitter and
+        // node-wise twist once the first bend/contact region lowered solver dt.
+        if (timeScale > static_cast<Real>(1.0) + kEps)
+        {
+            const Real turnTimeScale = contactLike
+                ? std::clamp(
+                    static_cast<Real>(1.0) + static_cast<Real>(0.10) * (timeScale - static_cast<Real>(1.0)),
+                    static_cast<Real>(1.0),
+                    static_cast<Real>(1.30))
+                : std::clamp(
+                    static_cast<Real>(1.0) + static_cast<Real>(0.16) * (timeScale - static_cast<Real>(1.0)),
+                    static_cast<Real>(1.0),
+                    static_cast<Real>(1.55));
+            maxTurnRad *= turnTimeScale;
+        }
         if (contactLike)
         {
             const Real contactTurnScale = std::clamp(
@@ -1596,10 +1823,32 @@ void ExternalMagneticForceField::addForce(const sofa::core::MechanicalParams* mp
     }
     else
     {
+        const bool contactLike = (
+            externalSurfaceContactActive
+            || barrierActiveNodes > 0u
+            || (std::isfinite(minLumenClearanceMm) && minLumenClearanceMm < static_cast<Real>(0.45))
+            || tipOffsetMm > static_cast<Real>(0.85));
         const Real smoothingAlpha = std::clamp(d_fieldSmoothingAlpha.getValue(), static_cast<Real>(0.0), static_cast<Real>(1.0));
         Real effectiveSmoothingAlpha = smoothingAlpha;
         if (smoothingAlpha > kEps && smoothingAlpha < static_cast<Real>(1.0) && timeScale > static_cast<Real>(1.0) + kEps)
-            effectiveSmoothingAlpha = static_cast<Real>(1.0) - std::pow(static_cast<Real>(1.0) - smoothingAlpha, timeScale);
+        {
+            // In GUI / wall-clock mode the control dt can be an order of
+            // magnitude larger than the solver dt. Using the raw timeScale here
+            // effectively disables safe-path smoothing exactly when the head
+            // first reaches the bend, which shows up as jitter and local twist.
+            const Real smoothingTimeScale = contactLike
+                ? std::clamp(
+                    static_cast<Real>(1.0) + static_cast<Real>(0.08) * (timeScale - static_cast<Real>(1.0)),
+                    static_cast<Real>(1.0),
+                    static_cast<Real>(1.22))
+                : std::clamp(
+                    static_cast<Real>(1.0) + static_cast<Real>(0.16) * (timeScale - static_cast<Real>(1.0)),
+                    static_cast<Real>(1.0),
+                    static_cast<Real>(1.45));
+            effectiveSmoothingAlpha = static_cast<Real>(1.0) - std::pow(
+                static_cast<Real>(1.0) - smoothingAlpha,
+                smoothingTimeScale);
+        }
         if (!m_hasFilteredBaVector || effectiveSmoothingAlpha <= kEps)
             m_filteredBaVector = desiredBa;
         else
@@ -1610,7 +1859,43 @@ void ExternalMagneticForceField::addForce(const sofa::core::MechanicalParams* mp
 
         Real maxTurnRad = std::max(d_maxFieldTurnAngleDeg.getValue(), static_cast<Real>(0.0)) * kPi / static_cast<Real>(180.0);
         if (timeScale > static_cast<Real>(1.0) + kEps)
-            maxTurnRad *= timeScale;
+        {
+            // The safe path previously multiplied the turn cap by the full
+            // wall-clock/solver ratio, so a single slow GUI frame could let the
+            // applied field snap almost directly to the new target. That abrupt
+            // steering change is a major source of the distal-head wring near the
+            // first bend.
+            const Real turnTimeScale = contactLike
+                ? std::clamp(
+                    static_cast<Real>(1.0) + static_cast<Real>(0.07) * (timeScale - static_cast<Real>(1.0)),
+                    static_cast<Real>(1.0),
+                    static_cast<Real>(1.20))
+                : std::clamp(
+                    static_cast<Real>(1.0) + static_cast<Real>(0.14) * (timeScale - static_cast<Real>(1.0)),
+                    static_cast<Real>(1.0),
+                    static_cast<Real>(1.45));
+            maxTurnRad *= turnTimeScale;
+        }
+        if (contactLike)
+        {
+            const Real contactOffsetGate = smoothstepRange(
+                tipOffsetMm,
+                static_cast<Real>(0.45),
+                static_cast<Real>(1.20));
+            const Real contactClearanceGate = std::isfinite(minLumenClearanceMm)
+                ? smoothstepRange(
+                    static_cast<Real>(0.65) - minLumenClearanceMm,
+                    static_cast<Real>(0.0),
+                    static_cast<Real>(0.40))
+                : static_cast<Real>(0.0);
+            const Real contactTurnScale = std::clamp(
+                static_cast<Real>(0.70)
+                    + static_cast<Real>(0.08) * contactClearanceGate
+                    + static_cast<Real>(0.08) * contactOffsetGate,
+                static_cast<Real>(0.68),
+                static_cast<Real>(0.82));
+            maxTurnRad *= contactTurnScale;
+        }
         if (!m_hasAppliedBaVector || maxTurnRad <= kEps)
             m_appliedBaVector = m_filteredBaVector;
         else
@@ -1669,6 +1954,41 @@ void ExternalMagneticForceField::addForce(const sofa::core::MechanicalParams* mp
     {
         assistGain = (static_cast<Real>(1.0) - recenteringAlpha) * assistGain + recenteringAlpha;
     }
+    Real safeContactReliefAlpha = static_cast<Real>(0.0);
+    if (!strictPhysicalTorqueOnly)
+    {
+        const Real safeHeadStretchReliefStart = std::max(
+            static_cast<Real>(0.20) * headStretchReliefStart,
+            static_cast<Real>(0.0010));
+        const Real safeHeadStretchReliefFull = std::max(
+            static_cast<Real>(0.50) * headStretchReliefFull,
+            safeHeadStretchReliefStart + static_cast<Real>(1.0e-6));
+        const Real safeHeadStretchReliefAlpha = std::clamp(
+            (currentMaxHeadStretch - safeHeadStretchReliefStart)
+                / (safeHeadStretchReliefFull - safeHeadStretchReliefStart),
+            static_cast<Real>(0.0),
+            static_cast<Real>(1.0));
+        const Real safeBarrierReliefAlpha = barrierActiveNodes > 0u
+            ? smoothstepRange(
+                static_cast<Real>(barrierActiveNodes),
+                static_cast<Real>(1.0),
+                static_cast<Real>(3.0))
+            : static_cast<Real>(0.0);
+        safeContactReliefAlpha = std::clamp(
+            std::max(
+                safeHeadStretchReliefAlpha,
+                std::max(
+                    static_cast<Real>(1.10) * clearanceGain,
+                    std::max(contactFieldAngleGate, safeBarrierReliefAlpha))),
+            static_cast<Real>(0.0),
+            static_cast<Real>(1.0));
+        if (safeContactReliefAlpha > kEps)
+        {
+            const Real safeAssistGainFloor = static_cast<Real>(1.15);
+            assistGain = (static_cast<Real>(1.0) - safeContactReliefAlpha) * assistGain
+                + safeContactReliefAlpha * safeAssistGainFloor;
+        }
+    }
 
     m_elapsedTime += std::max(controlDt, static_cast<Real>(0.0));
     Real fieldScale = externalFieldScale * scheduledFieldScaleBase;
@@ -1709,6 +2029,16 @@ void ExternalMagneticForceField::addForce(const sofa::core::MechanicalParams* mp
             fieldScale *= (static_cast<Real>(1.0) - headStretchGate) + headStretchGate * floorScale;
             assistFieldScale *= (static_cast<Real>(1.0) - headStretchGate) + headStretchGate * floorScale;
         }
+    }
+    else if (safeContactReliefAlpha > kEps)
+    {
+        // Safe mode still needs meaningful steering authority once the head is
+        // grazing the wall; collapsing the field almost to zero makes the tip
+        // keep pushing straight into the first bend instead of turning inward.
+        const Real safeTorqueFloor = static_cast<Real>(0.18);
+        const Real safeAssistFloor = static_cast<Real>(0.52);
+        fieldScale *= (static_cast<Real>(1.0) - safeContactReliefAlpha) + safeContactReliefAlpha * safeTorqueFloor;
+        assistFieldScale *= (static_cast<Real>(1.0) - safeContactReliefAlpha) + safeContactReliefAlpha * safeAssistFloor;
     }
     d_debugScheduledFieldScale.setValue(fieldScale);
     Vec3 debugTipForce(static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(0.0));

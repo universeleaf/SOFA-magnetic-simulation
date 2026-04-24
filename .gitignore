@@ -22,6 +22,9 @@ _plan_launch_*.log
 _verify_main*.log
 
 .ipynb_checkpoints/
+ppo_guidewire_latest.zip
+ppo_guidewire_monitor.csv
+ppo_guidewire_tensorboard/
 
 tools/vcpkg/
 tools/vcpkg.zip

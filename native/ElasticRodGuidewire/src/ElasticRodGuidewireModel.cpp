@@ -667,14 +667,27 @@ Real ElasticRodGuidewireModel::strictBarrierNodeWeight(std::size_t nodeIndex, st
 
 Real ElasticRodGuidewireModel::strictBarrierEdgeWeight(std::size_t edgeIndex, std::size_t nodeCount, const Vec3& midpointMm) const
 {
-    (void)edgeIndex;
-    (void)nodeCount;
-    (void)midpointMm;
-    // Keep the strict lumen barrier as a node-level emergency guard only.
-    // Edge-midpoint proxy forces use the circular centerline surrogate rather
-    // than the exact vessel surface and can therefore pre-activate at the
-    // first bend even when the true wall clearance is still healthy.
-    return static_cast<Real>(0.0);
+    if (nodeCount < 2u || !strictBarrierPointEligible(midpointMm))
+        return static_cast<Real>(0.0);
+
+    const std::size_t edgeCount = nodeCount - 1u;
+    if (edgeIndex >= edgeCount)
+        return static_cast<Real>(0.0);
+
+    const std::size_t distalProtectedEdges = std::min<std::size_t>(
+        edgeCount,
+        std::max<std::size_t>(
+            std::max<std::size_t>(magneticEdgeCount(), static_cast<std::size_t>(d_softTipEdgeCount.getValue())),
+            2u)
+            + 1u);
+    const std::size_t protectedStart = edgeCount > distalProtectedEdges ? edgeCount - distalProtectedEdges : 0u;
+    if (edgeIndex < protectedStart)
+        return static_cast<Real>(0.0);
+
+    const Real alpha = distalProtectedEdges > 1u
+        ? static_cast<Real>(edgeIndex - protectedStart) / static_cast<Real>(distalProtectedEdges - 1u)
+        : static_cast<Real>(1.0);
+    return static_cast<Real>(0.35) + static_cast<Real>(0.40) * smoothstep01(alpha);
 }
 
 std::size_t ElasticRodGuidewireModel::magneticEdgeCount() const
@@ -2003,9 +2016,12 @@ Real ElasticRodGuidewireModel::boundaryEnergySI(const VecCoord& q) const
             Vec3 outwardNormalM(static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(0.0));
             if (!sampleStrictLumenConstraintForEdge(i, midpointMm, safetyMarginMm, closestPointMm, projS, clearanceMm, outwardNormalM))
                 continue;
+            const Real edgeActivationMarginM = kMmToM * std::min(
+                std::max(d_strictLumenActivationMarginMm.getValue(), static_cast<Real>(0.0)),
+                safetyMarginMm + static_cast<Real>(0.25));
             const Real clearanceM = kMmToM * clearanceMm;
-            const Real penetration = std::max(activationMarginM - clearanceM, static_cast<Real>(0.0));
-            energy += static_cast<Real>(0.5) * barrierWeight * stiffness * penetration * penetration;
+            const Real penetration = std::max(edgeActivationMarginM - clearanceM, static_cast<Real>(0.0));
+            energy += static_cast<Real>(0.5) * barrierWeight * static_cast<Real>(0.65) * stiffness * penetration * penetration;
         }
     }
     return energy;
@@ -2087,7 +2103,8 @@ void ElasticRodGuidewireModel::applyStrictLumenBarrier(
             continue;
         minClearanceMm = std::min(minClearanceMm, clearanceMm);
 
-        const Real activationDepthM = std::max(activationMarginM - kMmToM * clearanceMm, static_cast<Real>(0.0));
+        const Real edgeActivationMarginMm = std::min(activationMarginMm, safetyMarginMm + static_cast<Real>(0.25));
+        const Real activationDepthM = std::max(kMmToM * edgeActivationMarginMm - kMmToM * clearanceMm, static_cast<Real>(0.0));
         if (activationDepthM <= static_cast<Real>(0.0))
             continue;
         if (outwardNormalM.norm() <= kEps)
@@ -2098,8 +2115,10 @@ void ElasticRodGuidewireModel::applyStrictLumenBarrier(
             : Vec3(static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(0.0));
         const Real outwardSpeed = std::max(sofa::type::dot(midpointVelocityM, outwardNormalM), static_cast<Real>(0.0));
         const Real forceMagnitudeN = std::min(
-            barrierWeight * (stiffness * activationDepthM + damping * outwardSpeed),
-            forceCap);
+            barrierWeight * (
+                static_cast<Real>(0.65) * stiffness * activationDepthM
+                + static_cast<Real>(0.70) * damping * outwardSpeed),
+            static_cast<Real>(0.70) * forceCap);
         if (forceMagnitudeN <= static_cast<Real>(0.0))
             continue;
 
@@ -2427,12 +2446,15 @@ void ElasticRodGuidewireModel::applyBoundaryDForce(const VecCoord& q, const VecD
             continue;
         if (normalM.norm() <= kEps)
             continue;
-        if (clearanceMm >= activationMarginMm)
+        const Real edgeActivationMarginMm = std::min(activationMarginMm, safetyMarginMm + static_cast<Real>(0.25));
+        if (clearanceMm >= edgeActivationMarginMm)
             continue;
 
         const Vec3 midpointDeltaM = static_cast<Real>(0.5) * (derivCenter(dx[i]) + derivCenter(dx[i + 1]));
         const Vec3 normalDelta = projectorAxial(normalM, midpointDeltaM);
-        const Vec3 dForceN = -barrierWeight * (kFactor * stiffness + bFactor * damping) * normalDelta;
+        const Vec3 dForceN = -barrierWeight * (
+            static_cast<Real>(0.65) * kFactor * stiffness
+            + static_cast<Real>(0.70) * bFactor * damping) * normalDelta;
         addCenterScene(df[i], static_cast<Real>(0.5) * dForceN);
         addCenterScene(df[i + 1], static_cast<Real>(0.5) * dForceN);
     }
@@ -2571,14 +2593,15 @@ void ElasticRodGuidewireModel::addBoundaryKToMatrix(const VecCoord& q, sofa::lin
             continue;
         if (normalM.norm() <= kEps)
             continue;
-        if (clearanceMm >= activationMarginMm)
+        const Real edgeActivationMarginMm = std::min(activationMarginMm, safetyMarginMm + static_cast<Real>(0.25));
+        if (clearanceMm >= edgeActivationMarginMm)
             continue;
 
         for (unsigned int r = 0; r < 3; ++r)
         {
             for (unsigned int c = 0; c < 3; ++c)
             {
-                const Real value = -static_cast<Real>(0.25) * kFact * barrierWeight * stiffness * normalM[r] * normalM[c];
+                const Real value = -static_cast<Real>(0.25) * static_cast<Real>(0.65) * kFact * barrierWeight * stiffness * normalM[r] * normalM[c];
                 const unsigned int rowI = offset + static_cast<unsigned int>(6 * edge + r);
                 const unsigned int rowJ = offset + static_cast<unsigned int>(6 * (edge + 1) + r);
                 const unsigned int colI = offset + static_cast<unsigned int>(6 * edge + c);

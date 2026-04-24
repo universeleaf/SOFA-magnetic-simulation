@@ -1,7 +1,7 @@
 ﻿cmake_minimum_required(VERSION 3.21)
 project(ElasticRodGuidewire VERSION 1.0 LANGUAGES CXX)
 
-set(ELASTICROD_OUTPUT_NAME "ElasticRodGuidewire_hotfix_turnfix" CACHE STRING "Output DLL base name for the ElasticRodGuidewire plugin")
+set(ELASTICROD_OUTPUT_NAME "ElasticRodGuidewire_hotfix_headbarrier" CACHE STRING "Output DLL base name for the ElasticRodGuidewire plugin")
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

@@ -1,30 +1,10 @@
 {
-  "selected_route_name": "right_outer_main",
+  "selected_route_name": "vessel_4_0108_full",
   "routes": {
-    "right_outer_main": {
-      "file": "routes/route_rightmost_lower_inlet_to_rightmost_upper_outlet.npy",
-      "summary": "??????? -> ???????",
-      "source": "hand-trimmed from branch_seg11 + branch_seg0"
-    },
-    "right_upper_inner_alt": {
-      "file": "routes/route_seg11_to_seg2.npy",
-      "summary": "??????? -> ???????",
-      "source": "extracted pairwise route 11->2"
-    },
-    "right_upper_mid_alt": {
-      "file": "routes/route_seg11_to_seg4.npy",
-      "summary": "??????? -> ????????",
-      "source": "extracted pairwise route 11->4"
-    },
-    "left_outer_alt": {
-      "file": "routes/route_seg11_to_seg27.npy",
-      "summary": "??????? -> ???????",
-      "source": "extracted pairwise route 11->27"
-    },
-    "left_mid_alt": {
-      "file": "routes/route_seg11_to_seg29.npy",
-      "summary": "??????? -> ???????",
-      "source": "extracted pairwise route 11->29"
+    "vessel_4_0108_full": {
+      "file": "routes/route_vessel_4_0108_full.npy",
+      "summary": "完整主通路（下入口 -> 上出口，已平滑并重新居中）",
+      "source": "auto-extracted from vessel_centerline_4_0108.npy and aligned to vessel_final_4_0108.stl"
     }
   }
 }

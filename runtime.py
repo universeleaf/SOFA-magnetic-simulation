@@ -47,6 +47,10 @@ def _candidate_local_plugin_dirs() -> Iterable[Path]:
 
 def _candidate_local_plugin_files() -> Iterable[Path]:
     names = [
+        f'{ELASTIC_ROD_PLUGIN_NAME}_hotfix_contactrelief.dll',
+        f'{ELASTIC_ROD_PLUGIN_NAME}_hotfix_headbarrier.dll',
+        f'{ELASTIC_ROD_PLUGIN_NAME}_hotfix_recenterpush.dll',
+        f'{ELASTIC_ROD_PLUGIN_NAME}_hotfix_signclamp.dll',
         f'{ELASTIC_ROD_PLUGIN_NAME}_hotfix_turnfix.dll',
         f'{ELASTIC_ROD_PLUGIN_NAME}_hotfix_branchcommit.dll',
         f'{ELASTIC_ROD_PLUGIN_NAME}_hotfix_turnhold.dll',

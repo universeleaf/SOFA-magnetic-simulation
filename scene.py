@@ -84,6 +84,7 @@ from .config import (
     ELASTICROD_MAGNETIC_STRENGTH_SCALE,
     ELASTICROD_STRICT_MAGNETIC_ASSIST,
     ELASTICROD_STRICT_MAGNETIC_PREVIEW_SCALING,
+    ELASTICROD_STRICT_PHYSICAL_TORQUE_ONLY,
     ELASTICROD_STRICT_MAGNETIC_RECENTER,
     ELASTICROD_STRICT_TIP_TARGET_FORCE_N,
     ELASTICROD_STRICT_BARRIER_ACTIVATION_MARGIN_MM,
@@ -94,6 +95,8 @@ from .config import (
     ELASTICROD_STRICT_BARRIER_STIFFNESS_N_PER_M,
     ELASTICROD_STRICT_AXIAL_STIFFNESS_SCALE,
     ELASTICROD_STRICT_AXIAL_USE_BODY_FLOOR,
+    ELASTICROD_SAFE_AXIAL_STIFFNESS_SCALE,
+    ELASTICROD_SAFE_AXIAL_USE_BODY_FLOOR,
     ELASTICROD_STRICT_DISABLE_NATIVE_BOUNDARY_DRIVER,
     ELASTICROD_STRICT_ENTRY_PUSH_BAND_ENABLED,
     ELASTICROD_STRICT_DRIVE_WINDOW_LENGTH_MM,
@@ -329,7 +332,7 @@ def _add_guidewire_visuals(guidewire, init_rigid: np.ndarray, distal_visual_coun
     head.addObject('RigidMapping', input='@../dofs', output='@dofs', rigidIndexPerPoint=distal_indices, globalToLocalCoords=True)
     head.addObject('EdgeSetTopologyContainer', name='topo', edges=[[i, i + 1] for i in range(max(0, len(distal_indices) - 1))])
     head_vis = head.addChild('Visual')
-    head_vis.addObject('OglModel', name='vis', src='@../topo', color='1.0 0.10 0.10 1.0', lineWidth=9)
+    head_vis.addObject('OglModel', name='vis', src='@../topo', color='1.0 0.10 0.10 1.0', lineWidth=4)
     head_vis.addObject('IdentityMapping', input='@../dofs', output='@vis')
 
 
@@ -404,7 +407,14 @@ def _add_elasticrod_external_support(root, entry_point: np.ndarray, insertion_di
         support_vertices,
         support_faces,
         rgba=None,
-        enable_collision=True,
+        # The strict direct-tail-feed path already constrains material inside
+        # the introducer corridor kinematically. Keeping a second collision
+        # shell here only adds redundant contact work and can pin the entry.
+        enable_collision=not (
+            ELASTICROD_STABILIZATION_MODE == 'strict'
+            and ELASTICROD_STRICT_DISABLE_NATIVE_BOUNDARY_DRIVER
+            and ELASTICROD_STRICT_SIMPLE_TAIL_DRIVE
+        ),
     )
     return node, support_vertices, support_radius_mm
 
@@ -675,9 +685,8 @@ def _build_elasticrod_backend(
         if vessel_vertices.ndim == 2 and vessel_vertices.shape[0] >= 8 and vessel_faces.shape[0] > 0
         else np.full(centerline.shape[0], max(2.0 * float(NATIVE_WIRE_RADIUS_MM), 1.0), dtype=float)
     )
-    strict_native_barrier = bool(
-        strict_mode
-        and ELASTICROD_STRICT_NATIVE_LUMEN_BARRIER
+    native_lumen_barrier = bool(
+        ELASTICROD_STRICT_NATIVE_LUMEN_BARRIER
         and lumen_radii_mm.shape[0] == centerline.shape[0]
     )
     strict_native_windows = strict_mode
@@ -814,14 +823,18 @@ def _build_elasticrod_backend(
         proximalLinearDamping=ELASTICROD_PROXIMAL_LINEAR_DAMPING_N_S_PER_M,
         proximalAngularDamping=ELASTICROD_PROXIMAL_ANGULAR_DAMPING_NM_S_PER_RAD,
         axialStretchStiffnessScale=(
-            ELASTICROD_STRICT_AXIAL_STIFFNESS_SCALE if strict_native_windows else 1.0
+            ELASTICROD_STRICT_AXIAL_STIFFNESS_SCALE
+            if strict_native_windows
+            else ELASTICROD_SAFE_AXIAL_STIFFNESS_SCALE
         ),
         axialStretchUseBodyFloor=bool(
-            strict_native_windows and ELASTICROD_STRICT_AXIAL_USE_BODY_FLOOR
+            ELASTICROD_STRICT_AXIAL_USE_BODY_FLOOR
+            if strict_native_windows
+            else ELASTICROD_SAFE_AXIAL_USE_BODY_FLOOR
         ),
         useImplicitBendTwist=ELASTICROD_USE_IMPLICIT_BEND_TWIST,
         useKinematicSupportBlock=(False if disable_native_boundary_driver else ELASTICROD_USE_KINEMATIC_SHEATH_DRIVER),
-        strictLumenBarrierEnabled=strict_native_barrier,
+        strictLumenBarrierEnabled=native_lumen_barrier,
         strictLumenActivationMarginMm=ELASTICROD_STRICT_BARRIER_ACTIVATION_MARGIN_MM,
         strictLumenSafetyMarginMm=ELASTICROD_STRICT_BARRIER_SAFETY_MARGIN_MM,
         strictLumenBarrierStiffness=ELASTICROD_STRICT_BARRIER_STIFFNESS_N_PER_M,
@@ -908,8 +921,8 @@ def _build_elasticrod_backend(
         ELASTICROD_STRICT_HEAD_STRETCH_RELIEF_START,
         ELASTICROD_STRICT_HEAD_STRETCH_RELIEF_FULL,
         ELASTICROD_STRICT_HEAD_STRETCH_FIELD_SCALE_FLOOR,
-        strict_native_barrier,
         strict_mode,
+        (ELASTICROD_STRICT_PHYSICAL_TORQUE_ONLY if strict_mode else False),
         required=True,
     )
     return {
@@ -1063,23 +1076,13 @@ def createScene(root: Sofa.Core.Node):
     target_marker_vis.addObject('OglModel', name='vis', src='@../topo', color='1.0 0.92 0.12 1.0', lineWidth=5)
     target_marker_vis.addObject('IdentityMapping', input='@../dofs', output='@vis')
 
+    # Calculate insertion direction as the tangent at vessel entry point
+    # Use only the first segment for accurate entry direction
     insertion_dir = np.zeros(3, dtype=float)
-    remaining_entry_axis_mm = (
-        float(ELASTICROD_ENTRY_AXIS_SAMPLE_LENGTH_MM)
-        if GUIDEWIRE_BACKEND == 'elasticrod'
-        else 8.0
-    )
-    for seg_idx in range(max(int(centerline.shape[0]) - 1, 0)):
-        seg = np.asarray(centerline[seg_idx + 1, :3] - centerline[seg_idx, :3], dtype=float).reshape(3)
-        seg_len = float(np.linalg.norm(seg))
-        if seg_len <= 1.0e-12:
-            continue
-        take = min(seg_len, remaining_entry_axis_mm)
-        insertion_dir += (take / seg_len) * seg
-        remaining_entry_axis_mm -= take
-        if remaining_entry_axis_mm <= 1.0e-9:
-            break
-    insertion_dir = _normalize(insertion_dir)
+    if centerline.shape[0] >= 2:
+        first_seg = np.asarray(centerline[1, :3] - centerline[0, :3], dtype=float).reshape(3)
+        insertion_dir = _normalize(first_seg)
+
     if np.linalg.norm(insertion_dir) < 1e-12:
         insertion_dir = np.array([0.0, 0.0, 1.0], dtype=float)
 

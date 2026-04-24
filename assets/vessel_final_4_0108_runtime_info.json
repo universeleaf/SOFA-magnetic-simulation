@@ -1,0 +1,75 @@
+{
+  "source_mesh": "C:\\Users\\wty05\\Desktop\\Sofa\\guidewire_scene\\assets\\vessel_final_4_0108.stl",
+  "runtime_mesh": "C:\\Users\\wty05\\Desktop\\Sofa\\guidewire_scene\\assets\\vessel_final_4_0108_runtime.obj",
+  "stats": {
+    "quantization_mm": 0.7,
+    "input_vertex_count": 1981752,
+    "input_face_count": 660584,
+    "cluster_vertex_count": 80394,
+    "output_vertex_count": 80394,
+    "output_face_count": 160847
+  },
+  "inlet_opening": {
+    "enabled": true,
+    "applied": true,
+    "backoff_mm": 0.0,
+    "route_start_mm": [
+      72.48257853965018,
+      6.822940846299709,
+      34.402918183002264
+    ],
+    "route_tangent": [
+      -0.12919406705276085,
+      0.9582916957378628,
+      0.2549233589105125
+    ],
+    "input_vertex_count": 80394,
+    "input_face_count": 160847,
+    "output_vertex_count": 78456,
+    "output_face_count": 156801,
+    "removed_face_count": 4046,
+    "plane_point_mm": [
+      72.48257853965018,
+      6.822940846299709,
+      34.402918183002264
+    ],
+    "plane_normal": [
+      -0.12919406705276087,
+      0.958291695737863,
+      0.25492335891051254
+    ],
+    "keep_positive_side": true
+  },
+  "inlet_boundary": {
+    "found": true,
+    "component_vertex_count": 52,
+    "center_mm": [
+      72.53768310970851,
+      7.1229774550897496,
+      34.51135428274426
+    ],
+    "mean_radius_mm": 4.747128468133663,
+    "max_radius_mm": 5.047645232029766,
+    "axis_radial_offset_mm": 0.09962100121867162,
+    "axis_axial_offset_mm": 0.30804630187519916,
+    "plane_residual_mean_mm": 0.3080463018752002,
+    "plane_residual_max_mm": 0.723553879136082,
+    "entry_axis_direction": [
+      -0.1291940670527675,
+      0.9582916957378625,
+      0.25492335891050993
+    ],
+    "component_count": 58,
+    "selection_score": 0.2844487823437914
+  },
+  "bbox_min_mm": [
+    31.611467361450195,
+    3.512385368347168,
+    4.6215596199035645
+  ],
+  "bbox_max_mm": [
+    149.86902573529412,
+    174.14036560058594,
+    91.50688171386719
+  ]
+}

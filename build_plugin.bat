@@ -8,7 +8,7 @@ set "PLUGIN_BUILD=%~dp0build\ElasticRodGuidewire"
 set "LOCAL_VCPKG_BOOST=%~dp0tools\vcpkg\installed\x64-windows\include"
 set "LOCAL_EIGEN_DIR=%~dp0..\third_party\eigen-3.4.0"
 if "%ELASTICROD_OUTPUT_NAME%"=="" set "ELASTICROD_OUTPUT_NAME=%~1"
-if "%ELASTICROD_OUTPUT_NAME%"=="" set "ELASTICROD_OUTPUT_NAME=ElasticRodGuidewire_hotfix_turnfix"
+if "%ELASTICROD_OUTPUT_NAME%"=="" set "ELASTICROD_OUTPUT_NAME=ElasticRodGuidewire_hotfix_headbarrier"
 set "BOOST_ARG="
 set "EIGEN_ARG="
 

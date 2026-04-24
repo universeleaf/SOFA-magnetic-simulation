@@ -50,6 +50,12 @@ from .config import (
     ELASTICROD_ENABLE_VIRTUAL_SHEATH,
     ELASTICROD_AXIAL_PATH_ASSIST_DEFICIT_MM,
     ELASTICROD_AXIAL_PATH_ASSIST_FORCE_N,
+    ELASTICROD_AXIAL_PATH_ASSIST_CONTACT_FORCE_SCALE,
+    ELASTICROD_AXIAL_PATH_ASSIST_CONTACT_MIN_SCALE,
+    ELASTICROD_AXIAL_PATH_ASSIST_WINDOW_BACK_MM,
+    ELASTICROD_AXIAL_PATH_ASSIST_WINDOW_FRONT_MM,
+    ELASTICROD_AXIAL_PATH_ASSIST_WINDOW_MIN_NODE_COUNT,
+    ELASTICROD_AXIAL_PATH_ASSIST_MAX_PUSH_SCALE,
     ELASTICROD_ENTRY_PUSH_BAND_LENGTH_MM,
     ELASTICROD_ENTRY_PUSH_BAND_MIN_NODE_COUNT,
     ELASTICROD_ENTRY_PUSH_BAND_OUTSIDE_OFFSET_MM,
@@ -99,6 +105,11 @@ from .config import (
     ELASTICROD_SAFE_RECOVERY_LINEAR_SPEED_MM_S,
     ELASTICROD_SAFE_RECOVERY_MAX_STRETCH,
     ELASTICROD_SAFE_RECOVERY_RETRACT_MM,
+    ELASTICROD_SAFE_TIP_WALL_CONTACT_RELEASE_HOLD_STEPS,
+    ELASTICROD_ENABLE_DISPLACEMENT_PUSH,
+    ELASTICROD_DISPLACEMENT_PUSH_VELOCITY_MM_PER_S,
+    ELASTICROD_DISPLACEMENT_PUSH_RELEASE_MM,
+    ELASTICROD_DISPLACEMENT_PUSH_CENTERING_GAIN,
     ELASTICROD_RECOVERY_TRIGGER_DISPLACEMENT_MM,
     ELASTICROD_RECOVERY_TRIGGER_LINEAR_SPEED_MM_S,
     ELASTICROD_RECOVERY_TRIGGER_MAX_STRETCH,
@@ -146,6 +157,10 @@ from .config import (
     ELASTICROD_STRICT_GUI_LIGHT_CONTACT_MAX_BARRIER_NODES,
     ELASTICROD_STRICT_GUI_LIGHT_CONTACT_WALL_GAP_MM,
     ELASTICROD_STRICT_GUI_MAX_INSERTION_STEP_MM,
+    ELASTICROD_STRICT_FEED_BOOST_BEND,
+    ELASTICROD_STRICT_FEED_BOOST_CONTACT,
+    ELASTICROD_STRICT_FEED_BOOST_HEAD_STRETCH_LIMIT,
+    ELASTICROD_STRICT_FEED_BOOST_START_MM,
     ELASTICROD_STRICT_GUI_SURFACE_REFRESH_FAR_STEPS,
     ELASTICROD_STRICT_GUI_SURFACE_REFRESH_NEAR_STEPS,
     ELASTICROD_STRICT_ENTRY_PUSH_BAND_ENABLED,
@@ -155,7 +170,9 @@ from .config import (
     ELASTICROD_STRICT_MAGNETIC_RELEASE_SPAN_MM,
     ELASTICROD_STRICT_RUNTIME_BEND_SEVERITY_CONTACT,
     ELASTICROD_STRICT_RUNTIME_BEND_SEVERITY_TRANSITION,
+    ELASTICROD_STRICT_RUNTIME_RELEASE_CONTACT_HOLD_STEPS,
     ELASTICROD_STRICT_RUNTIME_PROGRESS_GATE_MM,
+    ELASTICROD_STRICT_RUNTIME_RELEASE_TRANSITION_HOLD_STEPS,
     ELASTICROD_STRICT_SUPPORT_RELEASE_MM,
     ELASTICROD_STRICT_SUPPORT_WINDOW_LENGTH_MM,
     ELASTICROD_USE_KINEMATIC_SHEATH_DRIVER,
@@ -163,6 +180,7 @@ from .config import (
     ELASTICROD_STRICT_TIP_WALL_CONTACT_EXIT_MM,
     ELASTICROD_STRICT_TIP_WALL_CONTACT_RELEASE_HOLD_STEPS,
     ELASTICROD_STRICT_SIMPLE_TAIL_DRIVE,
+    ELASTICROD_STRICT_ALWAYS_PUSH_FORWARD,
     ELASTICROD_STRICT_HAND_PUSH_NODE_COUNT,
     ELASTICROD_STRICT_NATIVE_LUMEN_BARRIER,
     ELASTICROD_THRUST_FORCE_N,
@@ -206,6 +224,7 @@ from .config import (
     WALL_CONTACT_TIP_PROBE_NODES,
     WIRE_RADIUS_MM,
     WIRE_TOTAL_LENGTH_MM,
+    NATIVE_WIRE_RADIUS_MM,
     NATIVE_WIRE_TOTAL_LENGTH_MM,
     MAGNETIC_HEAD_EDGES,
     MAGNETIC_FIELD_SMOOTHING_ALPHA,
@@ -305,10 +324,18 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         self.is_native_backend = self.backend_name == 'elasticrod' and self.rod_model is not None
         self.is_native_strict = self.is_native_backend and ELASTICROD_STABILIZATION_MODE == 'strict'
         self.is_native_safe = self.is_native_backend and ELASTICROD_STABILIZATION_MODE == 'safe'
+        self.use_native_displacement_feed = (
+            self.is_native_backend
+            and self.is_native_safe
+            and bool(ELASTICROD_ENABLE_DISPLACEMENT_PUSH)
+        )
         self.use_native_entry_push_band = (
-            (not self.is_native_strict)
-            and bool(ELASTICROD_STRICT_ENTRY_PUSH_BAND_ENABLED)
-            and not bool(ELASTICROD_STRICT_SIMPLE_TAIL_DRIVE)
+            self.is_native_safe
+            or (
+                (not self.is_native_strict)
+                and bool(ELASTICROD_STRICT_ENTRY_PUSH_BAND_ENABLED)
+                and not bool(ELASTICROD_STRICT_SIMPLE_TAIL_DRIVE)
+            )
         )
         self.native_entry_push_band_length_mm = float(max(ELASTICROD_ENTRY_PUSH_BAND_LENGTH_MM, 0.5))
         self.native_entry_push_band_outside_offset_mm = float(max(ELASTICROD_ENTRY_PUSH_BAND_OUTSIDE_OFFSET_MM, 0.0))
@@ -434,6 +461,14 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             self.is_native_strict
             and (self._native_commanded_insertion is not None)
             and (not bool(ELASTICROD_STRICT_DISABLE_NATIVE_BOUNDARY_DRIVER))
+        )
+        self.use_native_displacement_feed = bool(
+            self.use_native_displacement_feed
+            or (
+                self.is_native_strict
+                and bool(ELASTICROD_STRICT_SIMPLE_TAIL_DRIVE)
+                and (not self.native_strict_boundary_driver_enabled)
+            )
         )
         self._native_use_kinematic_support = rod_model.findData('useKinematicSupportBlock') if rod_model is not None else None
         self._native_push_node_count_data = rod_model.findData('pushNodeCount') if rod_model is not None else None
@@ -570,6 +605,8 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         self.wall_contact_clearance_mm = float('inf')
         self.surface_wall_contact_clearance_mm = float('inf')
         self._strict_wall_contact_release_counter = 0
+        self._strict_wall_contact_enter_step: int | None = None
+        self._strict_wall_contact_release_step: int | None = None
         self.tip_contact_correction_mm = 0.0
         self._surface_probe_cache_step = -1
         self._surface_probe_cache: list[tuple[int, float, np.ndarray, np.ndarray]] = []
@@ -689,6 +726,11 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             if self.is_native_backend and self._rod_state_free_vel is not None else None
         )
         self._native_safe_recovery_cooldown = 0
+        self._native_safe_displacement_push_last_mm = 0.0
+        self._native_safe_displacement_push_logged = False
+        self._native_safe_last_recovery_step = -1
+        self._native_safe_last_recovery_kind = ''
+        self._native_safe_distal_recovery_streak = 0
         self._native_first_contact_step: int | None = None
         self._native_max_post_contact_jump_mm = 0.0
         self._native_stall_logged = False
@@ -718,11 +760,12 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         self._native_virtual_sheath_paused = False
         self._native_virtual_sheath_pause_reason = ''
         self._native_virtual_sheath_last_reaction_n = 0.0
+        self._native_axial_assist_mode = ''
         self._push_scale_reason = 'initial'
         self._native_strict_driver_limited = False
         self._native_strict_driver_limit_reason = ''
         self.native_strict_barrier_enabled = bool(
-            self.is_native_strict
+            self.is_native_backend
             and ELASTICROD_STRICT_NATIVE_LUMEN_BARRIER
             and self._native_strict_barrier_enabled_data is not None
             and bool(self._native_strict_barrier_enabled_data.value)
@@ -751,6 +794,9 @@ class GuidewireControllerBase(Sofa.Core.Controller):
 
     def _node_s(self, idx: int) -> float:
         return float(self.node_initial_path_s_mm[idx] + self.estimated_push_mm)
+
+    def _contact_radius_mm(self) -> float:
+        return float(NATIVE_WIRE_RADIUS_MM if self.is_native_backend else WIRE_RADIUS_MM)
 
     def _set_forcefield_indices(self, data, indices: list[int]) -> None:
         if data is None:
@@ -860,6 +906,39 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         if not self.use_native_entry_push_band or self.node_count <= 0:
             return [int(i) for i in self._active_native_push_indices] if self._active_native_push_indices else list(range(self.drive_count))
 
+        if self.is_native_safe:
+            spacing_mm = float(getattr(
+                self,
+                'rest_spacing_mm',
+                (NATIVE_WIRE_TOTAL_LENGTH_MM if self.is_native_backend else WIRE_TOTAL_LENGTH_MM) / max(self.node_count - 1, 1),
+            ))
+            back_mm = max(
+                float(ELASTICROD_AXIAL_PATH_ASSIST_WINDOW_BACK_MM),
+                max(2.0 * spacing_mm, 1.0),
+            )
+            front_mm = max(float(ELASTICROD_AXIAL_PATH_ASSIST_WINDOW_FRONT_MM), 0.0)
+            min_count = int(max(ELASTICROD_AXIAL_PATH_ASSIST_WINDOW_MIN_NODE_COUNT, 2))
+            s_min = -back_mm
+            s_max = front_mm
+            candidates = [i for i in range(self.node_count) if s_min - 1.0e-9 <= self._node_s(i) <= s_max + 1.0e-9]
+            if len(candidates) >= min_count:
+                return self._set_active_native_push_indices(candidates)
+
+            target_s = 0.5 * (s_min + s_max)
+            ranked = sorted(
+                list(range(self.node_count)),
+                key=lambda idx: (
+                    abs(self._node_s(idx) - target_s),
+                    abs(self._node_s(idx)),
+                    -self._node_s(idx),
+                    idx,
+                ),
+            )
+            fallback = sorted(ranked[: min(min_count, len(ranked))])
+            if fallback:
+                return self._set_active_native_push_indices(fallback)
+            return [int(i) for i in self._active_native_push_indices] if self._active_native_push_indices else list(range(self.drive_count))
+
         s_max = -self.native_entry_push_band_outside_offset_mm
         s_min = -(self.native_entry_push_band_outside_offset_mm + self.native_entry_push_band_length_mm)
         candidates = [i for i in range(self.node_count) if s_min - 1.0e-9 <= self._node_s(i) <= s_max + 1.0e-9]
@@ -879,6 +958,341 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         if fallback:
             return self._set_active_native_push_indices(fallback)
         return [int(i) for i in self._active_native_push_indices] if self._active_native_push_indices else list(range(self.drive_count))
+
+    def _current_node_centerline_s_mm(self) -> np.ndarray:
+        points_mm = self._current_points_mm()
+        count = min(int(self.node_count), int(points_mm.shape[0]))
+        if count <= 0:
+            return np.zeros(0, dtype=float)
+        if self.centerline.shape[0] < 2:
+            return np.asarray([self._node_s(i) for i in range(count)], dtype=float)
+
+        proj_s = np.zeros(count, dtype=float)
+        for idx in range(count):
+            _, s = self._project_to_centerline(points_mm[idx, :3])
+            proj_s[idx] = float(s)
+        return proj_s
+
+    def _native_axial_assist_targets(self, deficit_mm: float) -> tuple[list[tuple[int, float]], bool]:
+        if self.is_native_safe:
+            default_indices = (
+                self._native_entry_push_indices()
+                if self.use_native_entry_push_band
+                else [int(i) for i in self.native_axial_assist_indices]
+            )
+            entry_front_limit_mm = max(0.25 * float(self.rest_spacing_mm), 0.75)
+            trimmed_indices = [
+                int(idx) for idx in default_indices
+                if 0 <= int(idx) < self.node_count and float(self._node_s(int(idx))) <= entry_front_limit_mm + 1.0e-9
+            ]
+            if len(trimmed_indices) >= max(min(int(ELASTICROD_AXIAL_PATH_ASSIST_WINDOW_MIN_NODE_COUNT), 2), 1):
+                default_indices = trimmed_indices
+        else:
+            default_indices = (
+                self._native_entry_push_indices()
+                if self.use_native_entry_push_band
+                else [int(i) for i in self.native_axial_assist_indices]
+            )
+        current_proj_s = self._current_node_centerline_s_mm() if self.is_native_safe else np.zeros(0, dtype=float)
+        default_targets = []
+        for idx in default_indices:
+            idx = int(idx)
+            if not (0 <= idx < self.node_count):
+                continue
+            nominal_s = float(self._node_s(idx))
+            if self.is_native_safe and idx < current_proj_s.size and np.isfinite(float(current_proj_s[idx])):
+                path_s = max(float(current_proj_s[idx]), nominal_s, 0.0)
+            else:
+                path_s = max(nominal_s, 0.0)
+            default_targets.append((idx, path_s))
+        return default_targets, False
+
+    def _native_safe_displacement_push_targets(self) -> list[tuple[int, float, float]]:
+        if (not self.use_native_displacement_feed) or self.node_count <= 0:
+            return []
+
+        if self.is_native_strict:
+            base_indices = [
+                idx for idx in range(self.node_count)
+                if float(self._node_s(idx)) <= 1.0e-9
+            ]
+            if not base_indices:
+                base_indices = sorted({
+                    int(i) for i in self._strict_hand_push_indices()
+                    if 0 <= int(i) < self.node_count
+                })
+            if not base_indices:
+                return []
+            support_length_mm = max(
+                float(self.external_support_length_mm),
+                float(ELASTICROD_STRICT_EXTERNAL_SUPPORT_EFFECTIVE_LENGTH_MM),
+                float(ELASTICROD_STRICT_EXTERNAL_SUPPORT_LENGTH_MM),
+            )
+            transition_span_mm = max(1.5 * float(self.rest_spacing_mm), 3.0)
+            support_span_mm = max(min(support_length_mm, transition_span_mm), 0.5 * float(self.rest_spacing_mm), 1.0)
+            targets: list[tuple[int, float, float]] = []
+            for idx in base_indices:
+                support_depth_mm = max(-float(self._node_s(idx)), 0.0)
+                if support_depth_mm > support_length_mm + 1.0e-9:
+                    centering_alpha = 0.0
+                else:
+                    centering_alpha = 0.72 + 0.28 * float(np.clip(support_depth_mm / support_span_mm, 0.0, 1.0))
+                targets.append((idx, 1.0, float(np.clip(centering_alpha, 0.0, 1.0))))
+
+            anchor = max(base_indices)
+            transition_count = max(int(np.ceil(transition_span_mm / max(float(self.rest_spacing_mm), 1.0e-6))), 2)
+            transition_end = min(self.node_count, anchor + transition_count + 1)
+            for idx in range(anchor + 1, transition_end):
+                material_s_mm = max(float(self._node_s(idx)), 0.0)
+                if material_s_mm > transition_span_mm + 1.0e-9:
+                    break
+                transition_u = float(np.clip(material_s_mm / max(transition_span_mm, 1.0e-6), 0.0, 1.0))
+                alpha = float(np.clip(1.0 - 0.80 * transition_u, 0.20, 1.0))
+                if alpha <= 1.0e-6:
+                    continue
+                # Once material has entered the lumen, the external tail feed
+                # should stop dragging it back to the centerline. The previous
+                # blend kept recentring several millimetres inside the vessel,
+                # which fought magnetic steering and created hook-like kinks
+                # near the first bend. Keep only a tiny entry collar to avoid a
+                # numerical snag exactly at the ostium, then hand control to the
+                # rod/contact physics.
+                entry_collar_mm = max(0.75 * float(self.rest_spacing_mm), 0.8)
+                if material_s_mm <= entry_collar_mm + 1.0e-9:
+                    collar_u = float(np.clip(material_s_mm / max(entry_collar_mm, 1.0e-6), 0.0, 1.0))
+                    centering_alpha = float(np.clip(0.10 * (1.0 - collar_u), 0.0, 0.10))
+                else:
+                    centering_alpha = 0.0
+                targets.append((idx, alpha, centering_alpha))
+            return targets
+
+        def centering_weight(idx: int, alpha: float) -> float:
+            return 0.0
+
+        base_indices = sorted({
+            int(i) for i in self._native_entry_push_indices()
+            if 0 <= int(i) < self.node_count
+        })
+        if not base_indices:
+            return []
+
+        if self.node_initial_path_s_mm.size == 0:
+            return [(idx, 1.0, centering_weight(idx, 1.0)) for idx in base_indices]
+
+        count = min(self.node_count, int(self.node_initial_path_s_mm.size))
+        nominal_s = self.node_initial_path_s_mm[:count] + float(self.commanded_push_mm)
+        front_mm = max(float(ELASTICROD_AXIAL_PATH_ASSIST_WINDOW_FRONT_MM), 0.0)
+        front_denom_mm = max(front_mm, 0.5 * float(self.rest_spacing_mm), 1.0e-6)
+        targets: list[tuple[int, float, float]] = []
+        for idx in base_indices:
+            if idx >= count:
+                continue
+            node_s = float(nominal_s[idx])
+            if node_s <= 0.0:
+                alpha = 1.0
+            else:
+                alpha = float(np.clip(1.0 - node_s / front_denom_mm, 0.0, 1.0))
+            if alpha <= 1.0e-6:
+                continue
+            targets.append((idx, alpha, centering_weight(idx, alpha)))
+        return targets
+
+    def _update_displacement_push(self, dt: float) -> None:
+        if (
+            (not self.use_native_displacement_feed)
+            or dt <= 0.0
+            or self._rod_state_pos is None
+        ):
+            return
+
+        push_targets = self._native_safe_displacement_push_targets()
+        if not push_targets:
+            return
+
+        push_speed_mm_s = max(float(ELASTICROD_DISPLACEMENT_PUSH_VELOCITY_MM_PER_S), 0.0)
+        if push_speed_mm_s <= 1.0e-9:
+            return
+
+        scale = float(
+            np.clip(
+                self._native_startup_ramp_scale() * float(np.clip(self.push_force_scale, 0.0, self._max_push_scale_allowed())),
+                0.0,
+                self._max_push_scale_allowed(),
+            )
+        )
+        if scale <= 1.0e-9:
+            return
+
+        drive_lead_cap_mm = max(1.5 * float(self.rest_spacing_mm), 4.0)
+        progress_anchor_mm = max(
+            float(self.tip_progress_raw_mm),
+            min(float(self.drive_push_mm), float(self.tip_progress_raw_mm) + drive_lead_cap_mm),
+            0.0,
+        )
+        backlog_mm = float(max(self.commanded_push_mm - progress_anchor_mm, 0.0))
+        if backlog_mm <= 1.0e-6:
+            return
+
+        shift_mm = float(min(backlog_mm, push_speed_mm_s * scale * float(dt)))
+        if self.is_native_strict:
+            catchup_threshold_mm = max(1.5 * float(self.rest_spacing_mm), 1.0)
+            catchup_mm = max(backlog_mm - catchup_threshold_mm, 0.0)
+            if catchup_mm > 0.0:
+                shift_mm = float(
+                    min(
+                        backlog_mm,
+                        shift_mm + min(
+                            0.35 * catchup_mm,
+                            max(0.75 * float(self.rest_spacing_mm), 0.60),
+                        ),
+                    )
+                )
+        if shift_mm <= 1.0e-6:
+            return
+
+        if self.is_native_strict:
+            fresh_contact_hold = False
+            if (
+                self.wall_contact_active
+                and self._strict_wall_contact_enter_step is not None
+                and self.step_count >= self._strict_wall_contact_enter_step
+            ):
+                fresh_contact_hold = (self.step_count - self._strict_wall_contact_enter_step) <= 12
+            if fresh_contact_hold:
+                self._native_strict_hold_active_this_step = True
+                return
+            if self.wall_contact_active:
+                self._native_strict_hold_active_this_step = True
+                return
+
+            physical_gap_mm = float(self._native_strict_physical_contact_clearance_mm())
+            if np.isfinite(physical_gap_mm):
+                near_contact_alpha = float(np.clip((physical_gap_mm - 0.05) / 0.25, 0.0, 1.0))
+                shift_mm *= 0.15 + 0.85 * near_contact_alpha
+
+            head_stretch = float(self._native_strict_max_head_stretch())
+            soft_limit, hard_limit = self._native_strict_head_stretch_limits()
+            if self.wall_contact_active and head_stretch >= soft_limit:
+                self._native_strict_hold_active_this_step = True
+                return
+            if hard_limit > soft_limit:
+                stretch_alpha = float(np.clip((head_stretch - soft_limit) / (hard_limit - soft_limit), 0.0, 1.0))
+                shift_mm *= 1.0 - 0.85 * stretch_alpha
+
+            if shift_mm <= 1.0e-6:
+                self._native_strict_hold_active_this_step = True
+                return
+
+        rod_pos = np.array(_read(self._rod_state_pos), dtype=float, copy=True)
+        if rod_pos.ndim != 2 or rod_pos.shape[0] == 0 or rod_pos.shape[1] < 3:
+            return
+        rod_free_pos = (
+            np.array(_read(self._rod_state_free_pos), dtype=float, copy=True)
+            if self._rod_state_free_pos is not None
+            else None
+        )
+        rod_vel = (
+            np.array(_read(self._rod_state_vel), dtype=float, copy=True)
+            if self._rod_state_vel is not None
+            else None
+        )
+        rod_free_vel = (
+            np.array(_read(self._rod_state_free_vel), dtype=float, copy=True)
+            if self._rod_state_free_vel is not None
+            else None
+        )
+
+        centers_mm = 1000.0 * rod_pos[:, :3].copy()
+        axis = _normalize(np.asarray(self.insertion_direction, dtype=float).reshape(3))
+        if np.linalg.norm(axis) < 1.0e-12:
+            axis = DEFAULT_INSERTION_DIR.copy()
+        entry = self.entry_point.reshape(3)
+        support_length_mm = max(
+            float(self.external_support_length_mm),
+            float(ELASTICROD_STRICT_EXTERNAL_SUPPORT_EFFECTIVE_LENGTH_MM),
+            float(ELASTICROD_STRICT_EXTERNAL_SUPPORT_LENGTH_MM),
+        )
+        desired_vel_m_s = 1.0e-3 * (shift_mm / max(float(dt), 1.0e-9)) * axis
+
+        moved = 0
+        for idx, push_alpha, centering_alpha in push_targets:
+            if idx < 0 or idx >= centers_mm.shape[0]:
+                continue
+            current = centers_mm[idx, :3]
+            material_s_mm = float(self._node_s(idx))
+            if (
+                self.is_native_strict
+                and material_s_mm > 0.0
+                and self.centerline.shape[0] >= 2
+                and self.path_len > 1.0e-9
+            ):
+                current_s_mm = max(material_s_mm, 0.0)
+                target_s_mm = float(np.clip(current_s_mm + push_alpha * shift_mm, 0.0, self.path_len))
+                tangent = self._centerline_tangent(current_s_mm)
+                advected_point = current + push_alpha * shift_mm * tangent
+                target_point, _, _ = self._nominal_centerline_frame(target_s_mm)
+                new_point = (1.0 - centering_alpha) * advected_point + centering_alpha * target_point
+            else:
+                rel = current - entry
+                axial_mm = float(np.dot(rel, axis))
+                axis_point = entry + (axial_mm + push_alpha * shift_mm) * axis
+                radial = rel - axial_mm * axis
+                new_point = axis_point + (1.0 - centering_alpha) * radial
+            if (
+                self.is_native_strict
+                and material_s_mm <= 0.0
+                and material_s_mm >= -(support_length_mm + 1.0e-9)
+            ):
+                new_point = self._strict_project_inside_external_support(new_point)
+            if float(np.linalg.norm(new_point - current)) <= 1.0e-9:
+                continue
+
+            centers_mm[idx, :3] = new_point
+            rod_pos[idx, :3] = 1.0e-3 * new_point
+            if rod_free_pos is not None and idx < rod_free_pos.shape[0] and rod_free_pos.shape[1] >= 3:
+                rod_free_pos[idx, :3] = 1.0e-3 * new_point
+            if rod_vel is not None and idx < rod_vel.shape[0] and rod_vel.shape[1] >= 3:
+                rod_vel[idx, :3] = push_alpha * desired_vel_m_s
+                if rod_vel.shape[1] > 3:
+                    rod_vel[idx, 3:] *= max(0.0, 1.0 - centering_alpha)
+            if rod_free_vel is not None and idx < rod_free_vel.shape[0] and rod_free_vel.shape[1] >= 3:
+                rod_free_vel[idx, :3] = push_alpha * desired_vel_m_s
+                if rod_free_vel.shape[1] > 3:
+                    rod_free_vel[idx, 3:] *= max(0.0, 1.0 - centering_alpha)
+            moved += 1
+
+        if moved <= 0:
+            return
+
+        with _writeable(self._rod_state_pos) as out_pos:
+            out_pos[:] = rod_pos
+        if self._rod_state_free_pos is not None and rod_free_pos is not None:
+            with _writeable(self._rod_state_free_pos) as out_free_pos:
+                out_free_pos[:] = rod_free_pos
+        if self._rod_state_vel is not None and rod_vel is not None:
+            with _writeable(self._rod_state_vel) as out_vel:
+                out_vel[:] = rod_vel
+        if self._rod_state_free_vel is not None and rod_free_vel is not None:
+            with _writeable(self._rod_state_free_vel) as out_free_vel:
+                out_free_vel[:] = rod_free_vel
+
+        self._native_safe_displacement_push_last_mm = shift_mm
+        self._sync_native_rod_to_display()
+        self._invalidate_surface_probe_cache()
+        if not self._native_safe_displacement_push_logged:
+            push_nodes = [idx for idx, _, _ in push_targets]
+            print(
+                (
+                    f'[INFO] [elasticrod-safe] displacement push enabled: '
+                    f'nodes={push_nodes}, speed={push_speed_mm_s:.3f} mm/s, '
+                    f'entryBand=[-{ELASTICROD_AXIAL_PATH_ASSIST_WINDOW_BACK_MM:.1f}, +{ELASTICROD_AXIAL_PATH_ASSIST_WINDOW_FRONT_MM:.1f}] mm'
+                    if self.is_native_safe else
+                    f'[INFO] [elasticrod-strict] direct tail feed enabled: '
+                    f'nodes={push_nodes}, speed={push_speed_mm_s:.3f} mm/s, '
+                    f'externalSupportLength={self.external_support_length_mm:.3f} mm'
+                )
+            )
+            self._native_safe_displacement_push_logged = True
 
     def _strict_hand_push_indices(self) -> list[int]:
         if not (self.is_native_backend and self.is_native_strict):
@@ -921,7 +1335,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         radial_vec = rel - axial_mm * self.insertion_direction
         radial_mm = float(np.linalg.norm(radial_vec))
         allowed_mm = max(
-            support_radius_mm - float(WIRE_RADIUS_MM) - max(self.native_strict_lumen_clamp_tolerance_mm, 0.05),
+            support_radius_mm - self._contact_radius_mm() - max(self.native_strict_lumen_clamp_tolerance_mm, 0.05),
             0.0,
         )
         return float(allowed_mm - radial_mm)
@@ -943,7 +1357,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         radial_vec = p - axis_point
         radial_mm = float(np.linalg.norm(radial_vec))
         allowed_mm = max(
-            support_radius_mm - float(WIRE_RADIUS_MM) - max(self.native_strict_lumen_clamp_tolerance_mm, 0.05),
+            support_radius_mm - self._contact_radius_mm() - max(self.native_strict_lumen_clamp_tolerance_mm, 0.05),
             0.0,
         )
         if radial_mm <= allowed_mm + 1.0e-9:
@@ -1298,7 +1712,6 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             return
         if self.is_native_safe and ELASTICROD_ENABLE_SAFE_RECOVERY and self._native_safe_recovery_cooldown > 0:
             self._native_safe_recovery_cooldown = max(self._native_safe_recovery_cooldown - 1, 0)
-            return
         if self.is_native_strict and self.native_strict_boundary_driver_enabled:
             if not self._native_strict_boundary_driver_has_material():
                 if not self._native_strict_support_exhausted:
@@ -1324,10 +1737,69 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 )
             )
             scale *= self._native_strict_driver_follow_scale()
+            scale *= self._native_strict_guided_feed_boost()
+            scale = float(min(scale, self._max_push_scale_allowed()))
+            progress_anchor_mm = max(
+                float(self.tip_progress_raw_mm),
+                float(self.drive_push_mm) - 0.30,
+                0.0,
+            )
+            backlog_mm = max(float(self.commanded_push_mm) - progress_anchor_mm, 0.0)
+            if self.wall_contact_active:
+                stalled_tip_speed = max(float(self.filtered_tip_forward_speed_mm_s), 0.0)
+                stall_gate = float(np.clip((0.80 - stalled_tip_speed) / 0.80, 0.0, 1.0))
+                backlog_gate = float(np.clip((backlog_mm - 0.35) / 0.90, 0.0, 1.0))
+                head_stretch = float(self._native_strict_max_head_stretch())
+                soft_limit, hard_limit = self._native_strict_head_stretch_limits()
+                stretch_gate = 0.0
+                if hard_limit > soft_limit:
+                    stretch_gate = float(np.clip((head_stretch - soft_limit) / (hard_limit - soft_limit), 0.0, 1.0))
+                settle_gate = max(stretch_gate, stall_gate * backlog_gate)
+                if settle_gate >= 0.995:
+                    return
+                scale *= float((1.0 - settle_gate) + settle_gate * 0.05)
         else:
             scale = float(np.clip(self.push_force_scale, 0.0, self._max_push_scale_allowed()))
         if self.is_native_backend and (not self.is_native_strict):
             scale *= self._native_startup_ramp_scale()
+        if self.is_native_safe:
+            progress_anchor_mm = max(
+                float(self.tip_progress_raw_mm),
+                float(self.drive_push_mm) - 0.50,
+                0.0,
+            )
+            backlog_mm = max(float(self.commanded_push_mm) - progress_anchor_mm, 0.0)
+            if backlog_mm > 1.20:
+                backlog_gate = float(np.clip((backlog_mm - 1.20) / 1.40, 0.0, 1.0))
+                backlog_scale_floor = 0.65
+                if self.wall_contact_active:
+                    backlog_scale_floor = 0.50
+                if self._native_safe_recovery_cooldown > 0:
+                    backlog_scale_floor = min(backlog_scale_floor, 0.45)
+                scale *= float((1.0 - backlog_gate) + backlog_gate * backlog_scale_floor)
+            max_head_stretch = max(
+                float(self._native_debug_scalar(self._native_debug_max_head_stretch, default=0.0)),
+                0.0,
+            )
+            stretch_profile = self._native_debug_array(self._native_debug_stretch)
+            max_stretch = float(np.max(np.abs(stretch_profile))) if stretch_profile.size else 0.0
+            barrier_nodes = max(self._native_strict_barrier_active_node_count(), 0)
+            safe_kink_gate = 0.0
+            if self.wall_contact_active or barrier_nodes > 0:
+                if np.isfinite(self.wall_contact_clearance_mm):
+                    safe_kink_gate = max(
+                        safe_kink_gate,
+                        float(np.clip((0.18 - float(self.wall_contact_clearance_mm)) / 0.12, 0.0, 1.0)),
+                    )
+                safe_kink_gate = max(
+                    safe_kink_gate,
+                    float(np.clip((max_head_stretch - 6.0e-3) / 1.2e-2, 0.0, 1.0)),
+                    float(np.clip((max_stretch - 2.5e-2) / 7.5e-2, 0.0, 1.0)),
+                    float(np.clip((barrier_nodes - 3.0) / 4.0, 0.0, 1.0)),
+                )
+            if safe_kink_gate > 0.0:
+                safe_kink_floor = 0.42
+                scale *= float((1.0 - safe_kink_gate) + safe_kink_gate * safe_kink_floor)
         command_dt = float(dt)
         if self.use_native_gui_wallclock_control:
             command_dt = min(
@@ -1341,6 +1813,56 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         if self.use_native_gui_wallclock_control:
             delta_push_mm = min(delta_push_mm, float(max(ELASTICROD_STRICT_GUI_MAX_INSERTION_STEP_MM, 0.0)))
         self.commanded_push_mm = float(np.clip(self.commanded_push_mm + delta_push_mm, 0.0, self.max_push_mm))
+
+    def _native_strict_guided_feed_boost(self) -> float:
+        if not (self.is_native_strict and self.use_native_gui_wallclock_control):
+            return 1.0
+
+        progress_mm = max(
+            float(self.commanded_push_mm),
+            float(self.drive_push_mm),
+            float(self.tip_progress_raw_mm),
+            0.0,
+        )
+        if progress_mm < float(ELASTICROD_STRICT_FEED_BOOST_START_MM):
+            return 1.0
+
+        head_stretch = float(self._native_strict_max_head_stretch())
+        if head_stretch > float(ELASTICROD_STRICT_FEED_BOOST_HEAD_STRETCH_LIMIT):
+            return 1.0
+
+        support_stretch = self._native_debug_array(self._native_debug_stretch)
+        max_stretch = float(np.max(np.abs(support_stretch))) if support_stretch.size else 0.0
+        if max_stretch > 0.02:
+            return 1.0
+
+        bend_severity = float(np.clip(self._native_strict_bend_severity(), 0.0, 1.0))
+        barrier_nodes = int(self._native_strict_barrier_active_node_count())
+        boost = 1.0
+
+        if self.wall_contact_active:
+            physical_gap_mm = float(self._native_strict_physical_contact_clearance_mm())
+            gap_gate = (
+                float(np.clip((physical_gap_mm + 0.02) / 0.24, 0.0, 1.0))
+                if np.isfinite(physical_gap_mm)
+                else 1.0
+            )
+            barrier_limit = max(int(ELASTICROD_STRICT_GUI_GUIDED_CONTACT_MAX_BARRIER_NODES), 1)
+            barrier_gate = float(np.clip((barrier_limit + 1 - barrier_nodes) / (barrier_limit + 1), 0.0, 1.0))
+            if gap_gate > 0.0:
+                boost = max(
+                    boost,
+                    1.0 + (float(ELASTICROD_STRICT_FEED_BOOST_CONTACT) - 1.0) * gap_gate * max(barrier_gate, 0.35),
+                )
+
+        bend_gate = max(
+            float(np.clip((bend_severity - 0.30) / 0.45, 0.0, 1.0)),
+            float(np.clip(barrier_nodes / 3.0, 0.0, 1.0)),
+        )
+        if bend_gate > 0.0:
+            boost = max(boost, 1.0 + (float(ELASTICROD_STRICT_FEED_BOOST_BEND) - 1.0) * bend_gate)
+
+        return float(np.clip(boost, 1.0, self._max_push_scale_allowed()))
 
     def _max_push_scale_allowed(self) -> float:
         if self.is_native_realtime:
@@ -1372,27 +1894,79 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             return 1.0
         straight_mm = max(float(ELASTICROD_STRICT_INITIAL_STRAIGHT_PUSH_MM), 0.0)
         release_mm = max(float(ELASTICROD_STRICT_MAGNETIC_RELEASE_SPAN_MM), 0.0)
-        # Using tip-path progress here is too conservative once the soft head
-        # begins to skim or touch the wall: the magnetic segment can already be
-        # physically inside the lumen while the tip's projected centerline
-        # progress still reads near zero. Release the strict magnetic field based
-        # on actual material feed into the rod instead of waiting for the distal
-        # path projection to advance.
+        # Do not hard-disable the native field before the straight entry window
+        # is cleared. A zero here resets the native magnetic ramp/filter state,
+        # so when the head finally reaches the first bend the field has to cold
+        # start from nearly zero again and the tip looks "stuck". Keep a small
+        # preload alive instead; before release the strict field direction still
+        # follows the entry axis, so this warms the controller without pulling
+        # the head sideways ahead of the bend.
+        preload_scale = 0.18
+        lead_cap_mm = max(2.0 * float(self.rest_spacing_mm), 1.0)
+        # Let the field follow real material feed, but do not allow the proximal
+        # tail-drive to release steering far ahead of the distal head. That early
+        # release was creating entry-region loops before the tip had actually
+        # reached the first turn.
         progress_mm = max(
             float(self.tip_progress_raw_mm),
-            float(self.drive_push_mm),
-            float(self.base_progress_mm),
+            min(float(self.drive_push_mm), float(self.tip_progress_raw_mm) + lead_cap_mm),
+            min(float(self.base_progress_mm), float(self.tip_progress_raw_mm) + lead_cap_mm),
             0.0,
         )
         base_scale = 1.0
         if progress_mm <= straight_mm:
-            base_scale = 0.0
+            base_scale = preload_scale
         elif release_mm <= 1.0e-9:
             base_scale = 1.0
         else:
             u = float(np.clip((progress_mm - straight_mm) / release_mm, 0.0, 1.0))
-            base_scale = float(u * u * (3.0 - 2.0 * u))
+            release_alpha = float(u * u * (3.0 - 2.0 * u))
+            base_scale = float(preload_scale + (1.0 - preload_scale) * release_alpha)
         return float(np.clip(base_scale, 0.0, 1.0))
+
+    def _native_strict_field_damping_scale(self) -> float:
+        if not self.is_native_strict:
+            return 1.0
+        head_stretch = float(self._native_strict_max_head_stretch())
+        soft_limit, hard_limit = self._native_strict_head_stretch_limits()
+        stretch_gate = 0.0
+        engage_limit = max(0.55 * soft_limit, 0.010)
+        if hard_limit > engage_limit:
+            stretch_gate = float(np.clip((head_stretch - engage_limit) / (hard_limit - engage_limit), 0.0, 1.0))
+
+        contact_gate = 0.0
+        wall_gap_mm = float(self._native_strict_actual_wall_gap_mm())
+        if self.wall_contact_active and np.isfinite(wall_gap_mm):
+            contact_gate = float(np.clip((0.32 - wall_gap_mm) / 0.18, 0.0, 1.0))
+
+        fresh_contact_gate = 0.0
+        if (
+            self.wall_contact_active
+            and self._strict_wall_contact_enter_step is not None
+            and self.step_count >= self._strict_wall_contact_enter_step
+        ):
+            settle_steps = 12.0
+            fresh_contact_gate = float(
+                np.clip(
+                    1.0 - (self.step_count - self._strict_wall_contact_enter_step) / settle_steps,
+                    0.0,
+                    1.0,
+                )
+            )
+
+        stalled_contact_gate = 0.0
+        if self.wall_contact_active:
+            stalled_tip_speed = max(float(self.filtered_tip_forward_speed_mm_s), 0.0)
+            progress_anchor_mm = max(float(self.tip_progress_mm), float(self.drive_push_mm) - 0.30, 0.0)
+            backlog_mm = max(float(self.commanded_push_mm) - progress_anchor_mm, 0.0)
+            stalled_contact_gate = float(
+                np.clip((0.60 - stalled_tip_speed) / 0.60, 0.0, 1.0)
+                * np.clip((backlog_mm - 0.40) / 0.80, 0.0, 1.0)
+            )
+
+        damping_gate = max(stretch_gate, 0.85 * contact_gate, 0.95 * fresh_contact_gate, stalled_contact_gate)
+        damping_floor = 0.05 if stalled_contact_gate > 0.0 else 0.12
+        return float((1.0 - damping_gate) + damping_gate * damping_floor)
 
     def _native_control_dt(self, solver_dt: float) -> float:
         solver_dt = max(float(solver_dt), 0.0)
@@ -1418,8 +1992,38 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         runtime_dt_s = max(float(self._native_runtime_dt_s), 0.0)
         if runtime_dt_s <= 0.0:
             return limit_s
-
         band = str(self._native_runtime_band or 'free')
+        always_push_strict = self.is_native_strict and bool(ELASTICROD_STRICT_ALWAYS_PUSH_FORWARD)
+        recent_contact_release_steps = (
+            int(self.step_count - self._strict_wall_contact_release_step)
+            if (
+                self.is_native_strict
+                and self._strict_wall_contact_release_step is not None
+                and self.step_count >= self._strict_wall_contact_release_step
+            )
+            else 10**9
+        )
+        recent_contact_release = bool(
+            self.is_native_strict
+            and recent_contact_release_steps <= int(max(ELASTICROD_STRICT_RUNTIME_RELEASE_TRANSITION_HOLD_STEPS, 0))
+        )
+        if always_push_strict and band != 'contact' and (not self.wall_contact_active):
+            # Keep strict "always push" aggressive through free/transition bands
+            # so the head still feeds into the bend. Right after wall release,
+            # however, the distal section is still ringing; keep pushing, but
+            # let the guarded dt path below cap the feed step until the head is
+            # quiet again.
+            head_stretch_now = float(self._native_strict_max_head_stretch())
+            support_stretch_now = self._native_debug_array(self._native_debug_stretch)
+            max_stretch_now = float(np.max(np.abs(support_stretch_now))) if support_stretch_now.size else 0.0
+            if (
+                (band == 'free')
+                and (not recent_contact_release)
+                and head_stretch_now <= max(float(ELASTICROD_STRICT_FEED_BOOST_HEAD_STRETCH_LIMIT), 0.012)
+                and max_stretch_now <= 0.020
+            ):
+                return limit_s
+
         if band == 'contact':
             band_scale = float(max(ELASTICROD_GUI_WALLCLOCK_INSERTION_DT_CONTACT_SCALE, 1.0))
         elif band == 'transition':
@@ -1496,7 +2100,48 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 min(limit_s, max(base_limit_s, float(ELASTICROD_STRICT_GUI_GUIDED_CONTACT_INSERTION_DT_S)))
             )
 
-        return float((1.0 - relaxed_gate) * base_limit_s + relaxed_gate * relaxed_limit_s)
+        result_limit_s = float((1.0 - relaxed_gate) * base_limit_s + relaxed_gate * relaxed_limit_s)
+        if always_push_strict and band == 'contact':
+            contact_metric_candidates = []
+            if np.isfinite(contact_clearance_mm):
+                contact_metric_candidates.append(float(contact_clearance_mm))
+            if np.isfinite(wall_gap_mm):
+                contact_metric_candidates.append(float(wall_gap_mm))
+            contact_metric_mm = min(contact_metric_candidates) if contact_metric_candidates else float('inf')
+            guarded_contact_dt_s = float(max(1.45 * runtime_dt_s, runtime_dt_s))
+            if np.isfinite(contact_metric_mm):
+                # Keep advancing in strict always-push mode, but progressively
+                # shorten the GUI insertion command step toward a guarded
+                # contact-band dt as the tip approaches or slightly crosses the
+                # wall. The post-solve strict guard now catches tiny residual
+                # wall violations, so we no longer need to collapse all the way
+                # back to the raw solver dt, which was making the wire look
+                # visually stalled in the first bend.
+                deep_contact_gate = float(np.clip((0.34 - contact_metric_mm) / 0.28, 0.0, 1.0))
+                result_limit_s = float(
+                    (1.0 - deep_contact_gate) * result_limit_s
+                    + deep_contact_gate * guarded_contact_dt_s
+                )
+            if self.wall_contact_active and self._strict_wall_contact_enter_step is not None:
+                contact_duration_steps = max(int(self.step_count - self._strict_wall_contact_enter_step + 1), 0)
+                prolonged_contact_gate = float(np.clip((contact_duration_steps - 18.0) / 18.0, 0.0, 1.0))
+                if prolonged_contact_gate > 0.0:
+                    result_limit_s = float(
+                        (1.0 - prolonged_contact_gate) * result_limit_s
+                        + prolonged_contact_gate * guarded_contact_dt_s
+                    )
+
+        if recent_contact_release:
+            release_cap_s = float(max(ELASTICROD_STRICT_GUI_GUIDED_CONTACT_INSERTION_DT_S, 0.0))
+            stretch_gate = float(np.clip((head_stretch - 0.010) / 0.020, 0.0, 1.0))
+            stretch_cap_s = float(
+                (1.0 - stretch_gate) * release_cap_s
+                + stretch_gate * max(float(ELASTICROD_REALTIME_DT_CONTACT_S), 0.0025)
+            )
+            if stretch_cap_s > 0.0:
+                result_limit_s = float(min(result_limit_s, stretch_cap_s))
+
+        return result_limit_s
 
     def _update_tip_speed(self, tip_pos: np.ndarray, dt: float) -> None:
         if dt <= 1e-12:
@@ -1554,7 +2199,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         else:
             radius_mm = float(self.entry_radius_mm)
         radial_mm = float(np.linalg.norm(p - q))
-        guard_margin_mm = max(0.50, float(WIRE_RADIUS_MM + ELASTICROD_STRICT_BARRIER_ACTIVATION_MARGIN_MM))
+        guard_margin_mm = max(0.50, float(self._contact_radius_mm() + ELASTICROD_STRICT_BARRIER_ACTIVATION_MARGIN_MM))
         if radial_mm > radius_mm + guard_margin_mm:
             return False
         if axial_mm >= 0.0:
@@ -1574,6 +2219,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             support_clearance = self._strict_external_support_clearance_mm(point)
             if np.isfinite(support_clearance):
                 return float(support_clearance)
+        profile_clearance = float('inf')
         if (nominal_s >= 0.0 or strict_surface_guard) and self.use_fast_lumen:
             if exact_projection or nominal_s < VIRTUAL_SHEATH_RELEASE_S_MM:
                 q, proj_s = self._project_to_centerline(point)
@@ -1581,8 +2227,18 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             else:
                 q, proj_s, radius = self._nominal_centerline_frame(nominal_s)
             radial = float(np.linalg.norm(np.asarray(point, dtype=float).reshape(3) - q))
-            return max(radius - LUMEN_CLEARANCE_MM, 0.0) - radial
-        return float('inf')
+            profile_clearance = max(radius - LUMEN_CLEARANCE_MM, 0.0) - radial
+        if self.is_native_safe and nominal_s >= VIRTUAL_SHEATH_RELEASE_S_MM:
+            exact_surface = self._point_surface_clearance_sample(
+                point,
+                nominal_s,
+                exact_projection=True,
+            )
+            if exact_surface is not None and np.isfinite(float(exact_surface[0])):
+                if np.isfinite(profile_clearance):
+                    return float(min(profile_clearance, float(exact_surface[0])))
+                return float(exact_surface[0])
+        return float(profile_clearance)
 
     def _invalidate_surface_probe_cache(self) -> None:
         self._surface_probe_cache_step = -1
@@ -1801,7 +2457,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         inward = inward / max(inward_norm, 1.0e-12)
 
         signed_depth = float(np.dot(p - np.asarray(closest, dtype=float).reshape(3), inward))
-        clearance = signed_depth - WIRE_RADIUS_MM
+        clearance = signed_depth - self._contact_radius_mm()
         return float(clearance), np.asarray(closest, dtype=float).reshape(3), inward
 
     def _surface_probe_requires_exact_projection(
@@ -1900,13 +2556,21 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             return False
         return self.step_count > self._strict_gui_force_exact_surface_until_step
 
-    def _cheap_surface_clearance_mm(self) -> float:
+    def _cheap_surface_clearance_mm(self, *, tip_only: bool = False) -> float:
         points_mm = self._current_points_mm()
         clearances: list[float] = []
         if points_mm.ndim != 2 or points_mm.shape[0] == 0:
             return float('inf')
 
-        for idx in self._strict_surface_probe_indices(points_mm):
+        if tip_only:
+            probe_indices = [
+                int(i) for i in self._tip_probe_indices()
+                if 0 <= int(i) < self.node_count
+            ]
+        else:
+            probe_indices = self._strict_surface_probe_indices(points_mm)
+
+        for idx in probe_indices:
             nominal_s = self._node_s(idx)
             if not self._strict_native_surface_guard_eligible(points_mm[idx, :3], nominal_s):
                 continue
@@ -1915,9 +2579,17 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 radius = float(np.interp(proj_s, self.centerline_cum, self.fast_lumen_profile_mm))
             else:
                 q, _, radius = self._nominal_centerline_frame(nominal_s)
-            clearances.append(float(radius - np.linalg.norm(points_mm[idx, :3] - q) - WIRE_RADIUS_MM))
+            clearances.append(float(radius - np.linalg.norm(points_mm[idx, :3] - q) - self._contact_radius_mm()))
 
-        for edge_idx in self._strict_surface_probe_edge_indices(points_mm):
+        if tip_only:
+            tip_edge_start = max(self.node_count - WALL_CONTACT_TIP_PROBE_NODES - 1, 0)
+            if self.is_native_strict:
+                tip_edge_start = max(self.node_count - (self.magnetic_head_edge_count + 2), 0)
+            edge_indices = list(range(tip_edge_start, max(self.node_count - 1, 0)))
+        else:
+            edge_indices = self._strict_surface_probe_edge_indices(points_mm)
+
+        for edge_idx in edge_indices:
             p0 = points_mm[edge_idx, :3]
             p1 = points_mm[edge_idx + 1, :3]
             point = 0.5 * (p0 + p1)
@@ -1929,7 +2601,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 radius = float(np.interp(proj_s, self.centerline_cum, self.fast_lumen_profile_mm))
             else:
                 q, _, radius = self._nominal_centerline_frame(nominal_s)
-            clearances.append(float(radius - np.linalg.norm(point - q) - WIRE_RADIUS_MM))
+            clearances.append(float(radius - np.linalg.norm(point - q) - self._contact_radius_mm()))
 
         return float(min(clearances)) if clearances else float('inf')
 
@@ -2080,7 +2752,19 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         if self._surface_min_clearance_cache_step == self.step_count:
             return float(self._surface_min_clearance_cache)
         if self._strict_gui_skip_exact_surface_monitor():
-            clearance = self._cheap_surface_clearance_mm()
+            tip_only = bool(
+                self.is_native_strict
+                and self.use_native_gui_wallclock_control
+                and (not self.native_strict_barrier_enabled)
+            )
+            if tip_only:
+                head_surface_clearance = self._head_surface_clearance()
+                if np.isfinite(head_surface_clearance):
+                    clearance = float(head_surface_clearance)
+                else:
+                    clearance = float(self._head_wall_clearance())
+            else:
+                clearance = self._cheap_surface_clearance_mm(tip_only=tip_only)
             self.surface_wall_contact_clearance_mm = clearance
             self._surface_min_clearance_cache_step = self.step_count
             self._surface_min_clearance_cache = float(clearance)
@@ -2097,11 +2781,75 @@ class GuidewireControllerBase(Sofa.Core.Controller):
 
     def _head_surface_clearance(self) -> float:
         if self._head_surface_clearance_cache_step == self.step_count:
-            return float(self._head_surface_clearance_cache)
+            cached_clearance = float(self._head_surface_clearance_cache)
+            if self.is_native_strict and (not np.isfinite(cached_clearance)):
+                head_profile_clearance = float(self._head_wall_clearance())
+                near_contact_band_mm = max(float(ELASTICROD_STRICT_TIP_WALL_CONTACT_ENTER_MM) + 0.06, 0.24)
+                if np.isfinite(head_profile_clearance) and head_profile_clearance <= near_contact_band_mm:
+                    pass
+                else:
+                    return cached_clearance
+            else:
+                return cached_clearance
         samples = self._surface_probe_samples()
         edge_samples = self._surface_edge_probe_samples()
+        def _strict_exact_tip_surface_clearance_fallback() -> float:
+            if (not self.is_native_strict) or self.vessel_surface_query is None:
+                return float('inf')
+            head_profile_clearance = float(self._head_wall_clearance())
+            near_contact_band_mm = max(float(ELASTICROD_STRICT_TIP_WALL_CONTACT_ENTER_MM) + 0.06, 0.24)
+            if (
+                (not self.wall_contact_active)
+                and np.isfinite(head_profile_clearance)
+                and head_profile_clearance > near_contact_band_mm
+            ):
+                return float('inf')
+            recent_trusted_clearance = float(self.wall_contact_clearance_mm)
+            if (
+                (not self.wall_contact_active)
+                and np.isfinite(recent_trusted_clearance)
+                and recent_trusted_clearance >= max(float(ELASTICROD_STRICT_TIP_WALL_CONTACT_EXIT_MM) + 0.02, 0.50)
+                and np.isfinite(head_profile_clearance)
+                and head_profile_clearance >= -0.08
+            ):
+                return recent_trusted_clearance
+            points_mm = self._current_points_mm()
+            if points_mm.ndim != 2 or points_mm.shape[0] == 0:
+                return float('inf')
+            clearances: list[float] = []
+            for idx in self._tip_probe_indices():
+                if not (0 <= idx < points_mm.shape[0]):
+                    continue
+                nominal_s = self._node_s(idx)
+                sample = self._point_surface_clearance_sample(
+                    points_mm[idx, :3],
+                    nominal_s,
+                    exact_projection=True,
+                )
+                if sample is not None and np.isfinite(float(sample[0])):
+                    clearances.append(float(sample[0]))
+            tip_edge_start = max(self.node_count - WALL_CONTACT_TIP_PROBE_NODES - 1, 0)
+            if self.is_native_strict:
+                tip_edge_start = max(self.node_count - (self.magnetic_head_edge_count + 2), 0)
+            for edge_idx in range(tip_edge_start, max(points_mm.shape[0] - 1, 0)):
+                if edge_idx < 0 or edge_idx + 1 >= points_mm.shape[0]:
+                    continue
+                p0 = points_mm[edge_idx, :3]
+                p1 = points_mm[edge_idx + 1, :3]
+                for alpha in self._surface_edge_sample_alphas(edge_idx, True):
+                    point = (1.0 - alpha) * p0 + alpha * p1
+                    nominal_s = (1.0 - alpha) * self._node_s(edge_idx) + alpha * self._node_s(edge_idx + 1)
+                    sample = self._point_surface_clearance_sample(
+                        point,
+                        nominal_s,
+                        exact_projection=True,
+                    )
+                    if sample is not None and np.isfinite(float(sample[0])):
+                        clearances.append(float(sample[0]))
+            return float(min(clearances)) if clearances else float('inf')
+
         if not samples and not edge_samples:
-            clearance = float('inf')
+            clearance = _strict_exact_tip_surface_clearance_fallback()
             self._head_surface_clearance_cache_step = self.step_count
             self._head_surface_clearance_cache = clearance
             return clearance
@@ -2116,6 +2864,11 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             self._head_surface_clearance_cache_step = self.step_count
             self._head_surface_clearance_cache = clearance
             return clearance
+        fallback_clearance = _strict_exact_tip_surface_clearance_fallback()
+        if np.isfinite(fallback_clearance):
+            self._head_surface_clearance_cache_step = self.step_count
+            self._head_surface_clearance_cache = float(fallback_clearance)
+            return float(fallback_clearance)
         all_clearances = [sample[1] for sample in samples]
         all_clearances.extend(sample[3] for sample in edge_samples)
         clearance = float(min(all_clearances)) if all_clearances else float('inf')
@@ -2123,19 +2876,165 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         self._head_surface_clearance_cache = clearance
         return clearance
 
+    def _native_strict_head_surface_contact_is_trustworthy(
+        self,
+        head_surface_clearance_mm: float,
+        *,
+        native_gap_mm: float,
+        head_profile_clearance_mm: float,
+    ) -> bool:
+        if not np.isfinite(head_surface_clearance_mm):
+            return False
+        if not (self.is_native_strict and self.use_native_gui_wallclock_control):
+            return True
+
+        barrier_nodes = self._native_strict_barrier_active_node_count()
+        native_clearance_mm = self._native_debug_scalar(
+            self._native_debug_min_lumen_clearance_mm,
+            default=float('inf'),
+        )
+        contact_distance_mm = float(ELASTICROD_CONTACT_DISTANCE_MM)
+        trust_gap_mm = max(
+            float(ELASTICROD_STRICT_GUI_GUIDED_PRECONTACT_WALL_GAP_MM),
+            float(ELASTICROD_STRICT_TIP_WALL_CONTACT_EXIT_MM),
+            0.30,
+        )
+        trust_clearance_mm = max(
+            float(ELASTICROD_STRICT_GUI_GUIDED_PRECONTACT_CLEARANCE_MM),
+            float(ELASTICROD_STRICT_TIP_WALL_CONTACT_EXIT_MM),
+            0.30,
+        )
+        agreement_margin_mm = max(0.35, 3.0 * contact_distance_mm)
+
+        # If the native lumen barrier is inactive and both native clearance
+        # signals are comfortably positive, a lone negative exact-surface sample
+        # in GUI wall-clock mode is almost always the transient mesh-projection
+        # glitch that was causing false wall contact toggles.
+        if (
+            barrier_nodes <= 0
+            and np.isfinite(native_gap_mm)
+            and native_gap_mm >= trust_gap_mm
+            and (
+                (not np.isfinite(native_clearance_mm))
+                or native_clearance_mm >= max(trust_clearance_mm - float(ELASTICROD_STRICT_BARRIER_SAFETY_MARGIN_MM), 0.0)
+            )
+        ):
+            if head_surface_clearance_mm < -0.05:
+                return False
+            if (
+                np.isfinite(head_profile_clearance_mm)
+                and head_profile_clearance_mm >= trust_clearance_mm
+                and head_surface_clearance_mm < 0.5 * trust_clearance_mm
+            ):
+                return False
+
+        if np.isfinite(head_profile_clearance_mm):
+            if (
+                head_surface_clearance_mm < -0.05
+                and head_profile_clearance_mm >= trust_clearance_mm
+                and (
+                    (not np.isfinite(native_gap_mm))
+                    or native_gap_mm >= trust_gap_mm
+                )
+            ):
+                return False
+            if abs(head_surface_clearance_mm - head_profile_clearance_mm) <= agreement_margin_mm:
+                return True
+
+        if np.isfinite(native_gap_mm):
+            if abs(head_surface_clearance_mm - native_gap_mm) <= agreement_margin_mm:
+                return True
+            if head_surface_clearance_mm >= native_gap_mm - agreement_margin_mm:
+                return True
+
+        if barrier_nodes > 0:
+            return True
+        if np.isfinite(native_clearance_mm) and native_clearance_mm <= trust_clearance_mm:
+            return True
+        return head_surface_clearance_mm >= 0.0
+
+    def _native_strict_false_profile_contact_clearance_mm(
+        self,
+        *,
+        head_profile_clearance_mm: float,
+        head_surface_clearance_mm: float,
+    ) -> float | None:
+        if not self.is_native_strict:
+            return None
+        if not (
+            np.isfinite(head_profile_clearance_mm)
+            and np.isfinite(head_surface_clearance_mm)
+        ):
+            return None
+        if head_profile_clearance_mm > max(float(ELASTICROD_STRICT_TIP_WALL_CONTACT_EXIT_MM), 0.10):
+            return None
+        if head_surface_clearance_mm < max(float(ELASTICROD_STRICT_TIP_WALL_CONTACT_EXIT_MM) + 0.02, 0.32):
+            return None
+        disagreement_margin_mm = max(0.75, 2.0 * float(self._contact_radius_mm()))
+        if head_surface_clearance_mm < head_profile_clearance_mm + disagreement_margin_mm:
+            return None
+        if not self._native_strict_head_surface_contact_is_trustworthy(
+            float(head_surface_clearance_mm),
+            native_gap_mm=float(head_profile_clearance_mm),
+            head_profile_clearance_mm=float(head_profile_clearance_mm),
+        ):
+            return None
+        barrier_nodes = self._native_strict_barrier_active_node_count()
+        if barrier_nodes > int(ELASTICROD_STRICT_GUI_GUIDED_CONTACT_MAX_BARRIER_NODES):
+            return None
+        head_stretch = float(self._native_strict_max_head_stretch())
+        soft_limit, _ = self._native_strict_head_stretch_limits()
+        if head_stretch > max(1.35 * soft_limit, 0.020):
+            return None
+        return float(head_surface_clearance_mm)
+
     def _native_strict_physical_contact_clearance_mm(self) -> float:
         if not self.is_native_strict:
             return float('inf')
         clearances: list[float] = []
+        head_profile_clearance = self._head_wall_clearance()
+        head_surface_clearance = self._head_surface_clearance()
+        false_profile_override = self._native_strict_false_profile_contact_clearance_mm(
+            head_profile_clearance_mm=float(head_profile_clearance),
+            head_surface_clearance_mm=float(head_surface_clearance),
+        )
+        if false_profile_override is not None:
+            return float(false_profile_override)
         native_gap = self._native_strict_actual_wall_gap_mm()
         if np.isfinite(native_gap):
             clearances.append(float(native_gap))
-        head_surface_clearance = self._head_surface_clearance()
-        if np.isfinite(head_surface_clearance):
+        surface_trustworthy = self._native_strict_head_surface_contact_is_trustworthy(
+            float(head_surface_clearance),
+            native_gap_mm=float(native_gap),
+            head_profile_clearance_mm=float(head_profile_clearance),
+        )
+        contact_distance_mm = float(ELASTICROD_CONTACT_DISTANCE_MM)
+        disagreement_margin_mm = max(0.35, 3.0 * contact_distance_mm)
+        profile_is_false_contact = bool(
+            surface_trustworthy
+            and np.isfinite(head_surface_clearance)
+            and np.isfinite(head_profile_clearance)
+            and head_surface_clearance >= max(0.30, head_profile_clearance + disagreement_margin_mm)
+            and ((not np.isfinite(native_gap)) or native_gap >= max(0.30, contact_distance_mm))
+        )
+        if (
+            (not profile_is_false_contact)
+            and surface_trustworthy
+            and np.isfinite(head_surface_clearance)
+            and np.isfinite(head_profile_clearance)
+            and head_profile_clearance < head_surface_clearance - max(0.18, 0.75 * contact_distance_mm)
+            and head_surface_clearance >= max(0.18, 0.95 * contact_distance_mm)
+            and ((not np.isfinite(native_gap)) or native_gap >= max(float(ELASTICROD_STRICT_TIP_WALL_CONTACT_EXIT_MM), 0.30))
+        ):
+            # In tight bends the centerline-derived radius profile can be more
+            # conservative than the real STL lumen. Do not let that surrogate
+            # clearance create a hard contact if the exact surface query and
+            # native wall gap both say the head is still safely inside.
+            profile_is_false_contact = True
+        if np.isfinite(head_profile_clearance) and not profile_is_false_contact:
+            clearances.append(float(head_profile_clearance))
+        if surface_trustworthy:
             clearances.append(float(head_surface_clearance))
-        surface_clearance = self._surface_min_clearance_mm()
-        if np.isfinite(surface_clearance):
-            clearances.append(float(surface_clearance))
         return float(min(clearances)) if clearances else float('inf')
 
     def _project_inside_surface(self, point: np.ndarray, nominal_s: float, exact_projection: bool = False) -> np.ndarray:
@@ -2143,7 +3042,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         if sample is None:
             return np.asarray(point, dtype=float).reshape(3)
         _, closest, inward = sample
-        target_depth = float(WIRE_RADIUS_MM + max(self.native_strict_lumen_clamp_tolerance_mm, 0.05))
+        target_depth = float(self._contact_radius_mm() + max(self.native_strict_lumen_clamp_tolerance_mm, 0.05))
         return np.asarray(closest, dtype=float).reshape(3) + target_depth * np.asarray(inward, dtype=float).reshape(3)
 
     def _should_log_native_strict_guard(
@@ -2167,17 +3066,23 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         return DEBUG_PRINT_EVERY > 0 and (self.step_count % DEBUG_PRINT_EVERY) == 0
 
     def _strict_surface_exact_monitor_required(self, native_clearance_mm: float | None = None) -> bool:
-        if not (self.is_native_strict and self.native_strict_barrier_enabled):
+        if not self.is_native_strict:
             return True
         clearance = (
             float(native_clearance_mm)
             if native_clearance_mm is not None and np.isfinite(native_clearance_mm)
             else self._native_debug_scalar(self._native_debug_min_lumen_clearance_mm, default=float('inf'))
         )
-        if not np.isfinite(clearance):
-            return True
         activation_margin = max(float(ELASTICROD_STRICT_BARRIER_ACTIVATION_MARGIN_MM), 0.25)
         exact_band_mm = max(0.25, 0.35 * activation_margin)
+        if not self.native_strict_barrier_enabled:
+            if not self.use_native_gui_wallclock_control:
+                return True
+            if not np.isfinite(clearance):
+                return bool(self.wall_contact_active)
+            return bool(self.wall_contact_active or clearance <= exact_band_mm)
+        if not np.isfinite(clearance):
+            return True
         return bool(
             self.wall_contact_active
             or self._native_strict_barrier_active_node_count() > 0
@@ -2192,7 +3097,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         if verts.ndim != 2 or verts.shape[0] == 0:
             return float('inf')
         p = np.asarray(point, dtype=float).reshape(3)
-        return float(np.min(np.linalg.norm(verts - p.reshape(1, 3), axis=1)) - WIRE_RADIUS_MM)
+        return float(np.min(np.linalg.norm(verts - p.reshape(1, 3), axis=1)) - self._contact_radius_mm())
 
     def _head_wall_clearance(self) -> float:
         if self._head_wall_clearance_cache_step == self.step_count:
@@ -2220,10 +3125,17 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             if self._head_wall_clearance_exact_step >= 0 and (self.step_count - self._head_wall_clearance_exact_step) < refresh_stride:
                 self._head_wall_clearance_cache_step = self.step_count
                 return float(self._head_wall_clearance_cache)
-        clearances = [self._point_wall_clearance(rigid[i, :3], self._node_s(i), exact_projection=True) for i in self._tip_probe_indices()]
+        exact_projection = True
+        if self.is_native_strict and self.use_native_gui_wallclock_control:
+            exact_projection = bool(self._strict_surface_exact_monitor_required())
+        clearances = [
+            self._point_wall_clearance(rigid[i, :3], self._node_s(i), exact_projection=exact_projection)
+            for i in self._tip_probe_indices()
+        ]
         clearance = float(min(clearances)) if clearances else float('inf')
         self._head_wall_clearance_cache_step = self.step_count
-        self._head_wall_clearance_exact_step = self.step_count
+        if exact_projection:
+            self._head_wall_clearance_exact_step = self.step_count
         self._head_wall_clearance_cache = clearance
         return clearance
 
@@ -2259,6 +3171,14 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 return self._strict_project_inside_external_support(p)
         if nominal_s < VIRTUAL_SHEATH_RELEASE_S_MM:
             return p
+        if self.is_native_safe and self.vessel_surface_query is not None:
+            surface_sample = self._point_surface_clearance_sample(
+                p,
+                nominal_s,
+                exact_projection=True,
+            )
+            if surface_sample is not None and float(surface_sample[0]) < -LUMEN_CONSTRAINT_TOLERANCE_MM:
+                return self._project_inside_surface(p, nominal_s, exact_projection=True)
         if nominal_s >= 0.0 and self.use_fast_lumen:
             if exact_projection:
                 q, proj_s = self._project_to_centerline(p)
@@ -2292,6 +3212,12 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         sheath_quat = _quat_from_z_to(self.insertion_direction)
         rest = None
         rest_dirty = False
+        safe_exact_guard_start = (
+            max(0, centers.shape[0] - (self.magnetic_head_edge_count + 12))
+            if self.is_native_safe
+            else centers.shape[0]
+        )
+        safe_exact_surface_margin_mm = 0.12
 
         blend_nodes = 0
 
@@ -2349,10 +3275,36 @@ class GuidewireControllerBase(Sofa.Core.Controller):
 
             lumen_nodes += 1
             clearance = self._point_wall_clearance(centers[i], nominal_s)
-            if clearance >= -LUMEN_CONSTRAINT_TOLERANCE_MM:
+            fixed = None
+            if self.is_native_safe and i >= safe_exact_guard_start:
+                surface_sample = self._point_surface_clearance_sample(
+                    centers[i],
+                    nominal_s,
+                    exact_projection=True,
+                )
+                if surface_sample is not None:
+                    surface_clearance, closest, inward = surface_sample
+                    if float(surface_clearance) < safe_exact_surface_margin_mm:
+                        target_depth_mm = float(self._contact_radius_mm() + max(safe_exact_surface_margin_mm, 0.08))
+                        fixed = (
+                            np.asarray(closest, dtype=float).reshape(3)
+                            + target_depth_mm * np.asarray(inward, dtype=float).reshape(3)
+                        )
+            if fixed is None and clearance >= -LUMEN_CONSTRAINT_TOLERANCE_MM:
                 fixed = centers[i]
-            else:
-                fixed = self._constrain_point(centers[i], nominal_s)
+            elif fixed is None:
+                if self.is_native_safe:
+                    surface_sample = self._point_surface_clearance_sample(
+                        centers[i],
+                        nominal_s,
+                        exact_projection=True,
+                    )
+                    if surface_sample is not None and float(surface_sample[0]) < -LUMEN_CONSTRAINT_TOLERANCE_MM:
+                        fixed = self._project_inside_surface(centers[i], nominal_s, exact_projection=True)
+                    else:
+                        fixed = self._constrain_point(centers[i], nominal_s)
+                else:
+                    fixed = self._constrain_point(centers[i], nominal_s)
 
             sheath_alpha = self._sheath_blend_alpha(nominal_s) if self.enable_virtual_sheath else 0.0
             if sheath_alpha > 0.0:
@@ -2376,6 +3328,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         else:
             # 闁绘せ鏅濋幃濠囧箳閵娿儱顫旀俊顖椻偓宕囩濞戞挸顑戠槐婵嬪矗椤忓啰绠介柣锝嗙懄閻庮剛绮╅婊勨挄闁诡兛娴囩粩鐔兼⒐婢跺憡鍙忓璺虹▌缁辨繈鏌嗛崹顔煎赋閻庣懓顦崣蹇涘箮閺囩偛顨涢柟璺猴攻閺嗭綁寮介柅娑氼偩
             # 閺夆晜鍨抽幎鈧柟瀛樺姀閳ь剚绮嶉惁鈥愁潰閵夈儱绻侀柛鎺撴构缁楀宕ｉ娆忓殤闂傗偓鎼存挴鍋撳┑鍫熺暠閺夆晜鍔曟慨鈺冣偓娑崇畵閹藉ジ寮舵幊閳?            min_seg_len = 0.25 * self.rest_spacing_mm
+            min_seg_len = 0.25 * self.rest_spacing_mm
             max_seg_len = 2.50 * self.rest_spacing_mm
             relax_iters = 1
             relax_start_index = 1
@@ -2408,6 +3361,118 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 if np.linalg.norm(centers[i] - centers_before[i]) > 1e-9:
                     corrected.add(i)
                     _mark_orientation_update(i)
+
+        if self.is_native_safe and self.vessel_surface_query is not None and centers.shape[0] >= 2:
+            safe_edge_start = max(self.node_count - (self.magnetic_head_edge_count + 10), 0)
+            target_depth_mm = float(self._contact_radius_mm() + max(safe_exact_surface_margin_mm, 0.08))
+            for _ in range(3):
+                changed_edge = False
+                for edge_idx in range(safe_edge_start, centers.shape[0] - 1):
+                    p0 = centers[edge_idx, :3]
+                    p1 = centers[edge_idx + 1, :3]
+                    for alpha in (0.20, 0.40, 0.60, 0.80):
+                        point = (1.0 - alpha) * p0 + alpha * p1
+                        nominal_s = (1.0 - alpha) * self._node_s(edge_idx) + alpha * self._node_s(edge_idx + 1)
+                        sample = self._point_surface_clearance_sample(
+                            point,
+                            nominal_s,
+                            exact_projection=True,
+                        )
+                        if sample is None:
+                            continue
+                        clearance, closest, inward = sample
+                        if float(clearance) >= safe_exact_surface_margin_mm:
+                            continue
+                        projected_point = np.asarray(closest, dtype=float).reshape(3) + target_depth_mm * np.asarray(inward, dtype=float).reshape(3)
+                        displacement = projected_point - point
+                        displacement_norm = float(np.linalg.norm(displacement))
+                        if displacement_norm <= 1.0e-9:
+                            continue
+                        w0 = float(np.clip(1.0 - alpha, 0.0, 1.0))
+                        w1 = float(np.clip(alpha, 0.0, 1.0))
+                        scale = 1.0 / max(w0 * w0 + w1 * w1, 1.0e-9)
+                        centers[edge_idx, :3] += scale * w0 * displacement
+                        centers[edge_idx + 1, :3] += scale * w1 * displacement
+                        corrected.add(edge_idx)
+                        corrected.add(edge_idx + 1)
+                        _mark_orientation_update(edge_idx)
+                        _mark_orientation_update(edge_idx + 1)
+                        changed_edge = True
+                        p0 = centers[edge_idx, :3]
+                        p1 = centers[edge_idx + 1, :3]
+                if not changed_edge:
+                    break
+
+        if self.is_native_safe and centers.shape[0] >= 3:
+            safe_head_start = max(1, centers.shape[0] - max(self.magnetic_head_edge_count + 3, 5))
+            safe_head_min_seg_len = 0.96 * self.rest_spacing_mm
+            safe_head_max_seg_len = 1.06 * self.rest_spacing_mm
+            safe_turn_limit_deg = 58.0 if self.wall_contact_active else 52.0
+            safe_velocity_damp = 0.25 if self.wall_contact_active else 0.45
+            for _ in range(1 if self.wall_contact_active else 2):
+                changed_head = False
+                for i in range(safe_head_start, centers.shape[0]):
+                    prev = centers[i - 1, :3]
+                    current = centers[i, :3]
+                    nominal_s = self._node_s(i)
+                    vec = current - prev
+                    dist = float(np.linalg.norm(vec))
+                    centerline_dir = self._centerline_tangent(max(nominal_s, 0.0))
+                    direction = _normalize(vec if dist > 1.0e-9 else centerline_dir)
+                    if np.linalg.norm(direction) < 1.0e-12:
+                        direction = self.insertion_direction.copy()
+
+                    turn_deg = 0.0
+                    if i > safe_head_start:
+                        prev_vec = centers[i - 1, :3] - centers[i - 2, :3]
+                        prev_norm = float(np.linalg.norm(prev_vec))
+                        if prev_norm > 1.0e-9:
+                            prev_dir = prev_vec / prev_norm
+                            turn_deg = float(
+                                np.degrees(
+                                    np.arccos(
+                                        np.clip(float(np.dot(prev_dir, direction)), -1.0, 1.0)
+                                    )
+                                )
+                            )
+                            if turn_deg > safe_turn_limit_deg:
+                                blend = float(np.clip((turn_deg - safe_turn_limit_deg) / 35.0, 0.0, 1.0))
+                                direction = _normalize(
+                                    (1.0 - 0.52 * blend) * direction
+                                    + 0.38 * blend * prev_dir
+                                    + 0.30 * blend * centerline_dir
+                                )
+                                if np.linalg.norm(direction) < 1.0e-12:
+                                    direction = prev_dir
+
+                    needs_length_fix = (dist < safe_head_min_seg_len) or (dist > safe_head_max_seg_len)
+                    needs_turn_fix = turn_deg > safe_turn_limit_deg
+                    if not (needs_length_fix or needs_turn_fix):
+                        continue
+
+                    desired_len = float(
+                        np.clip(
+                            dist if dist > 1.0e-9 else self.rest_spacing_mm,
+                            safe_head_min_seg_len,
+                            safe_head_max_seg_len,
+                        )
+                    )
+                    candidate = prev + desired_len * direction
+                    candidate = self._constrain_point(candidate, nominal_s, exact_projection=True)
+                    if np.linalg.norm(candidate - current) <= 1.0e-6:
+                        continue
+                    centers[i, :3] = candidate
+                    corrected.add(i)
+                    _mark_orientation_update(i)
+                    changed_head = True
+                if not changed_head:
+                    break
+
+            for i in range(safe_head_start, centers.shape[0]):
+                if i not in corrected:
+                    continue
+                v[i, :3] *= safe_velocity_damp
+                v[i, 3:] = 0.0
 
         pre_entry_guard_edges = 0
         if (not self.is_native_backend) and (not self.enable_virtual_sheath) and BEAM_PRE_ENTRY_ACCESS_GUIDE_MM > 0.0:
@@ -2480,6 +3545,32 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             pos[:] = x
         with _writeable(self._vel) as vel:
             vel[:] = v
+        if self.is_native_backend and self._rod_state_pos is not None:
+            n = min(int(x.shape[0]), int(np.asarray(_read(self._rod_state_pos)).shape[0]))
+            if n > 0:
+                rod_pos = np.array(_read(self._rod_state_pos), dtype=float, copy=True)
+                if rod_pos.ndim == 2 and rod_pos.shape[1] >= 3:
+                    rod_pos[:n, :3] = 1.0e-3 * x[:n, :3]
+                    with _writeable(self._rod_state_pos) as out_rod_pos:
+                        out_rod_pos[:] = rod_pos
+                if self._rod_state_free_pos is not None:
+                    rod_free_pos = np.array(_read(self._rod_state_free_pos), dtype=float, copy=True)
+                    if rod_free_pos.ndim == 2 and rod_free_pos.shape[0] >= n and rod_free_pos.shape[1] >= 3:
+                        rod_free_pos[:n, :3] = 1.0e-3 * x[:n, :3]
+                        with _writeable(self._rod_state_free_pos) as out_rod_free_pos:
+                            out_rod_free_pos[:] = rod_free_pos
+                if self._rod_state_vel is not None:
+                    rod_vel = np.array(_read(self._rod_state_vel), dtype=float, copy=True)
+                    if rod_vel.ndim == 2 and rod_vel.shape[0] >= n and rod_vel.shape[1] >= 3:
+                        rod_vel[:n, :3] = 1.0e-3 * v[:n, :3]
+                        with _writeable(self._rod_state_vel) as out_rod_vel:
+                            out_rod_vel[:] = rod_vel
+                if self._rod_state_free_vel is not None:
+                    rod_free_vel = np.array(_read(self._rod_state_free_vel), dtype=float, copy=True)
+                    if rod_free_vel.ndim == 2 and rod_free_vel.shape[0] >= n and rod_free_vel.shape[1] >= 3:
+                        rod_free_vel[:n, :3] = 1.0e-3 * v[:n, :3]
+                        with _writeable(self._rod_state_free_vel) as out_rod_free_vel:
+                            out_rod_free_vel[:] = rod_free_vel
         if rest_dirty and rest is not None:
             with _writeable(self._rest) as rest_out:
                 rest_out[:] = rest
@@ -2533,11 +3624,14 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         min_clearance = float('inf')
         max_speed_before = 0.0
         clamp_tolerance_mm = float(self.native_strict_lumen_clamp_tolerance_mm)
+        guard_enter_clearance_mm = 0.025 if self.is_native_strict else -clamp_tolerance_mm
         corrected_node_indices: set[int] = set()
         corrected_edge_indices: set[int] = set()
-        surrogate_disagreement_margin_mm = max(0.75, 2.0 * float(WIRE_RADIUS_MM))
+        surrogate_disagreement_margin_mm = max(0.75, 2.0 * float(self._contact_radius_mm()))
         exact_surface_trust_clearance_mm = 0.20
         prefer_surrogate_recovery = False
+        physical_clearance = float('inf')
+        physical_tip_recovery = False
 
         def _clip_linear_speed(arr: np.ndarray | None) -> int:
             nonlocal max_speed_before
@@ -2615,6 +3709,10 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 default=float('inf'),
             )
             barrier_nodes = self._native_strict_barrier_active_node_count() if self.is_native_strict else 0
+            if self.is_native_strict:
+                physical_clearance = float(self._native_strict_physical_contact_clearance_mm())
+                if np.isfinite(physical_clearance):
+                    min_clearance = min(min_clearance, physical_clearance)
             surface_clearance = float('inf')
             if self._strict_surface_exact_monitor_required(native_clearance):
                 surface_clearance = self._surface_min_clearance_mm()
@@ -2634,7 +3732,10 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 and (not exact_surface_safe_override)
                 and (
                     (not np.isfinite(surface_clearance))
-                    or surface_clearance >= native_clearance + surrogate_disagreement_margin_mm
+                    or (
+                        surface_clearance > exact_surface_trust_clearance_mm
+                        and surface_clearance >= native_clearance + surrogate_disagreement_margin_mm
+                    )
                 )
             )
             emergency_recovery = bool(
@@ -2642,11 +3743,17 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 and (
                     (
                         np.isfinite(native_clearance)
-                        and native_clearance < -clamp_tolerance_mm
+                        and native_clearance < guard_enter_clearance_mm
                         and (not exact_surface_safe_override)
                     )
-                    or (np.isfinite(surface_clearance) and surface_clearance < -clamp_tolerance_mm)
+                    or (np.isfinite(surface_clearance) and surface_clearance < guard_enter_clearance_mm)
+                    or (np.isfinite(physical_clearance) and physical_clearance < guard_enter_clearance_mm)
                 )
+            )
+            physical_tip_recovery = bool(
+                self.enable_native_strict_lumen_clamp
+                and np.isfinite(physical_clearance)
+                and physical_clearance < guard_enter_clearance_mm
             )
             if emergency_recovery:
                 exact_surface_clearance = self._surface_min_clearance_mm()
@@ -2724,6 +3831,49 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                     self._native_last_strict_guard_step = self.step_count
                 return 0, clipped + hold_damped
 
+        if physical_tip_recovery:
+            tip_recovery_indices = sorted({
+                *[int(idx) for idx in self._tip_probe_indices()],
+                *range(max(self.node_count - (self.magnetic_head_edge_count + 2), 0), self.node_count),
+            })
+            for i in tip_recovery_indices:
+                if not (0 <= i < centers_mm.shape[0]):
+                    continue
+                nominal_s = self._node_s(i)
+                surface_sample = self._point_surface_clearance_sample(
+                    centers_mm[i],
+                    nominal_s,
+                    exact_projection=True,
+                )
+                corrected_point = (
+                    self._project_inside_surface(centers_mm[i], nominal_s, exact_projection=True)
+                    if surface_sample is not None and float(surface_sample[0]) < guard_enter_clearance_mm
+                    else self._constrain_point(centers_mm[i], nominal_s, exact_projection=True)
+                )
+                correction = corrected_point - centers_mm[i]
+                correction_norm = float(np.linalg.norm(correction))
+                if correction_norm <= 1.0e-9:
+                    continue
+                inward = correction / correction_norm
+                outward = -inward
+                centers_mm[i] = corrected_point
+                rod_pos[i, :3] = 1.0e-3 * corrected_point
+                if rod_free_pos is not None and i < rod_free_pos.shape[0]:
+                    rod_free_pos[i, :3] = 1.0e-3 * corrected_point
+                if rod_vel is not None and i < rod_vel.shape[0] and rod_vel.shape[1] >= 3:
+                    outward_speed = float(np.dot(rod_vel[i, :3], outward))
+                    if outward_speed > 0.0:
+                        rod_vel[i, :3] -= outward_speed * outward
+                if rod_free_vel is not None and i < rod_free_vel.shape[0] and rod_free_vel.shape[1] >= 3:
+                    outward_speed = float(np.dot(rod_free_vel[i, :3], outward))
+                    if outward_speed > 0.0:
+                        rod_free_vel[i, :3] -= outward_speed * outward
+                corrected += 1
+                corrected_node_indices.add(i)
+                for neighbor_idx in (i - 1, i + 1):
+                    if 0 <= neighbor_idx < centers_mm.shape[0]:
+                        corrected_node_indices.add(neighbor_idx)
+
         for i in range(centers_mm.shape[0]):
             nominal_s = self._node_s(i)
             if not self._strict_native_surface_guard_eligible(centers_mm[i], nominal_s):
@@ -2737,7 +3887,33 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                     nominal_s,
                     exact_projection=True,
                 )
+            elif (
+                self.is_native_strict
+                and np.isfinite(surrogate_clearance)
+                and surrogate_clearance < max(guard_enter_clearance_mm, exact_surface_trust_clearance_mm)
+            ):
+                # Strict non-barrier mode still uses the centerline-radius
+                # surrogate for cheap broad-phase wall checks. Near the first
+                # bend that surrogate can stay pinned at ~0 even when the exact
+                # STL distance is safely positive, which makes the tip look
+                # glued to the wall and triggers a corrective "snap" every
+                # frame. Verify suspicious near-contact nodes against the exact
+                # surface before treating them as a true penetration.
+                surface_sample = self._point_surface_clearance_sample(
+                    centers_mm[i],
+                    nominal_s,
+                    exact_projection=True,
+                )
             surface_clearance = float(surface_sample[0]) if surface_sample is not None else float('inf')
+            exact_surface_safe_override = bool(
+                self.is_native_strict
+                and np.isfinite(surface_clearance)
+                and surface_clearance > exact_surface_trust_clearance_mm
+                and (
+                    (not np.isfinite(surrogate_clearance))
+                    or surface_clearance >= surrogate_clearance + surrogate_disagreement_margin_mm
+                )
+            )
             use_surrogate_recovery = bool(
                 prefer_surrogate_recovery
                 and np.isfinite(surrogate_clearance)
@@ -2757,7 +3933,9 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             )
             if np.isfinite(clearance):
                 min_clearance = min(min_clearance, clearance)
-            if (not self.enable_native_strict_lumen_clamp) or clearance >= -self.native_strict_lumen_clamp_tolerance_mm:
+            if exact_surface_safe_override:
+                continue
+            if (not self.enable_native_strict_lumen_clamp) or clearance >= guard_enter_clearance_mm:
                 continue
 
             corrected_point = (
@@ -2807,8 +3985,8 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                     corrected_edge_indices.add(edge_idx)
 
         if self.enable_native_strict_lumen_clamp:
-            target_depth = float(WIRE_RADIUS_MM + max(self.native_strict_lumen_clamp_tolerance_mm, 0.05))
-            second_pass_target_depth = float(WIRE_RADIUS_MM + max(self.native_strict_lumen_clamp_tolerance_mm, 0.07))
+            target_depth = float(self._contact_radius_mm() + max(self.native_strict_lumen_clamp_tolerance_mm, 0.10))
+            second_pass_target_depth = float(self._contact_radius_mm() + max(self.native_strict_lumen_clamp_tolerance_mm, 0.12))
             magnetic_edge_start = max(centers_mm.shape[0] - 1 - int(self.magnetic_head_edge_count), 0)
             head_edge_emergency_tol_mm = 2.0 * clamp_tolerance_mm
 
@@ -2828,12 +4006,13 @@ class GuidewireControllerBase(Sofa.Core.Controller):
 
                 w0 = float(np.clip(1.0 - alpha, 0.0, 1.0))
                 w1 = float(np.clip(alpha, 0.0, 1.0))
+                correction_scale = static_correction_scale = 1.0 / max(w0 * w0 + w1 * w1, 1.0e-9)
                 outward = -np.asarray(inward, dtype=float).reshape(3)
                 any_applied = False
                 for node_idx, weight in ((edge_idx, w0), (edge_idx + 1, w1)):
                     if weight <= 1.0e-9:
                         continue
-                    centers_mm[node_idx] += weight * displacement
+                    centers_mm[node_idx] += static_correction_scale * weight * displacement
                     rod_pos[node_idx, :3] = 1.0e-3 * centers_mm[node_idx]
                     if rod_free_pos is not None and node_idx < rod_free_pos.shape[0]:
                         rod_free_pos[node_idx, :3] = 1.0e-3 * centers_mm[node_idx]
@@ -2869,7 +4048,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 effective_clearance = float(surrogate_clearance) if use_surrogate_recovery else float(clearance)
                 if np.isfinite(effective_clearance):
                     min_clearance = min(min_clearance, effective_clearance)
-                if effective_clearance >= -self.native_strict_lumen_clamp_tolerance_mm:
+                if effective_clearance >= guard_enter_clearance_mm:
                     continue
                 if (
                     self.is_native_strict
@@ -2929,7 +4108,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                         continue
                     if np.isfinite(clearance):
                         min_clearance = min(min_clearance, float(clearance))
-                    if clearance >= -self.native_strict_lumen_clamp_tolerance_mm:
+                    if clearance >= guard_enter_clearance_mm:
                         continue
                     if use_surrogate_recovery:
                         corrected_point = self._constrain_point(point, nominal_s, exact_projection=True)
@@ -2939,15 +4118,15 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                             continue
                         inward = -correction / correction_norm
                         closest = corrected_point - second_pass_target_depth * inward
-                if _apply_edge_sample_correction(
-                    edge_idx,
-                    alpha,
-                    point,
-                    closest,
-                    inward,
-                    second_pass_target_depth,
-                ):
-                    corrected_edge_samples += 1
+                    if _apply_edge_sample_correction(
+                        edge_idx,
+                        alpha,
+                        point,
+                        closest,
+                        inward,
+                        second_pass_target_depth,
+                    ):
+                        corrected_edge_samples += 1
 
         local_contact_speed_cap_mm_s = max(20.0, 2.0 * float(self.push_force_target_speed_mm_s))
         locally_clipped = max(
@@ -3022,6 +4201,10 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 if fast_release:
                     release_hold_steps = min(release_hold_steps, 1)
                 self.wall_contact_active = self._strict_wall_contact_release_counter <= release_hold_steps
+            elif self.is_native_backend and (not self.is_native_strict) and clearance > exit_mm:
+                self._strict_wall_contact_release_counter += 1
+                release_hold_steps = max(int(ELASTICROD_SAFE_TIP_WALL_CONTACT_RELEASE_HOLD_STEPS), 0)
+                self.wall_contact_active = self._strict_wall_contact_release_counter <= release_hold_steps
             else:
                 self._strict_wall_contact_release_counter = 0
                 self.wall_contact_active = clearance <= exit_mm
@@ -3031,6 +4214,13 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         self.wall_contact_clearance_mm = clearance
         if prev != self.wall_contact_active:
             state = 'entered' if self.wall_contact_active else 'released'
+            if self.is_native_strict:
+                if self.wall_contact_active:
+                    self._strict_wall_contact_enter_step = self.step_count
+                    self._strict_wall_contact_release_step = None
+                else:
+                    self._strict_wall_contact_enter_step = None
+                    self._strict_wall_contact_release_step = self.step_count
             message = f'[INFO] Tip wall contact {state}: clearance={clearance:.4f} mm'
             if self.is_native_backend:
                 if self.wall_contact_active and self._native_first_contact_step is None:
@@ -3100,7 +4290,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         clearance = float(self.wall_contact_clearance_mm)
         steering = float(abs(self.steering_angle_deg))
         wall_contact = bool(self.wall_contact_active)
-        hard_wall_contact = self._native_strict_hard_wall_contact() if self.is_native_strict else wall_contact
+        hard_wall_contact = self._native_strict_hard_wall_contact() if self.is_native_strict else False
         barrier_nodes = self._native_strict_barrier_active_node_count() if self.is_native_strict else 0
         barrier_contact_gate = self._native_strict_barrier_contact_gate() if self.is_native_strict else 0.0
         barrier_active = self.is_native_strict and (barrier_nodes > 0 or barrier_contact_gate > 0.0)
@@ -3128,6 +4318,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             return band
 
         steering_metric = preview_turn_deg if self.is_native_strict else steering
+        steering_hold_metric = max(float(steering_metric), float(steering))
         strict_clearance = (
             self._native_strict_min_lumen_clearance_mm()
             if self.is_native_strict
@@ -3227,6 +4418,35 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         max_stretch = float(np.max(np.abs(support_stretch))) if support_stretch.size else 0.0
         max_head_stretch = self._native_strict_max_head_stretch()
         max_twist = self._native_debug_max_abs(self._native_debug_twist)
+        if not self.is_native_strict:
+            safe_contact_clearance_mm = clearance if np.isfinite(clearance) else float('inf')
+            if np.isfinite(self.surface_wall_contact_clearance_mm):
+                safe_contact_clearance_mm = min(safe_contact_clearance_mm, float(self.surface_wall_contact_clearance_mm))
+            hard_wall_contact = bool(
+                wall_contact
+                and (
+                    (
+                        np.isfinite(safe_contact_clearance_mm)
+                        and safe_contact_clearance_mm <= 0.10
+                        and barrier_nodes >= 2
+                    )
+                    or max_head_stretch >= 8.0e-3
+                    or max_stretch >= 6.5e-2
+                    or max_twist >= 9.0e-2
+                )
+            )
+            safe_barrier_contact = bool(
+                barrier_active
+                and np.isfinite(safe_contact_clearance_mm)
+                and safe_contact_clearance_mm <= max(float(ELASTICROD_REALTIME_CLEARANCE_CONTACT_MM) + 0.05, 0.32)
+                and (
+                    barrier_nodes >= max(int(ELASTICROD_STRICT_EXTERNAL_PUSH_MAX_NODE_COUNT), 4)
+                    or max_head_stretch >= 4.0e-3
+                    or max_twist >= 6.0e-2
+                )
+            )
+        else:
+            safe_barrier_contact = False
         proximal_abnormal_edge = self._native_debug_int(self._native_debug_abnormal_edge_index, default=-1)
         proximal_axial_err = self._native_debug_scalar(self._native_debug_max_axial_boundary_error)
         _, head_stretch_hard_limit = self._native_strict_head_stretch_limits()
@@ -3248,6 +4468,73 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             return choose_band('contact', f'strictHold:{self._native_virtual_sheath_pause_reason}')
 
         head_stretch_soft_limit, _ = self._native_strict_head_stretch_limits()
+        recent_contact_release_steps = (
+            int(self.step_count - self._strict_wall_contact_release_step)
+            if (
+                self.is_native_strict
+                and self._strict_wall_contact_release_step is not None
+                and self.step_count >= self._strict_wall_contact_release_step
+            )
+            else 10**9
+        )
+        recent_contact_release = bool(
+            self.is_native_strict
+            and recent_contact_release_steps <= int(max(ELASTICROD_STRICT_RUNTIME_RELEASE_TRANSITION_HOLD_STEPS, 0))
+        )
+        recent_contact_damping = bool(
+            self.is_native_strict
+            and recent_contact_release_steps <= int(max(ELASTICROD_STRICT_RUNTIME_RELEASE_CONTACT_HOLD_STEPS, 0))
+        )
+        kink_preview_clearance_limit = max(steering_transition_clearance, 0.95)
+        if (
+            self.is_native_strict
+            and (
+                steering_metric >= max(float(ELASTICROD_REALTIME_STEERING_ENTER_DEG) - 10.0, 25.0)
+                or bend_severity >= max(float(ELASTICROD_STRICT_RUNTIME_BEND_SEVERITY_TRANSITION), 0.20)
+                or recent_contact_release
+            )
+        ):
+            kink_preview_clearance_limit = max(kink_preview_clearance_limit, 1.30)
+        strict_kink_preview = bool(
+            self.is_native_strict
+            and (
+                clearance <= kink_preview_clearance_limit
+                or (recent_contact_release and clearance <= 1.45)
+            )
+            and (
+                max_head_stretch >= max(0.60 * head_stretch_soft_limit, 0.014)
+                or max_stretch >= 0.018
+                or max_twist >= 0.08
+            )
+        )
+        strict_bend_contact_hold = bool(
+            self.is_native_strict
+            and strict_progress_mm >= 3.0
+            and np.isfinite(clearance)
+            and clearance <= 1.20
+            and (
+                max_head_stretch >= 0.014
+                or max_stretch >= 0.018
+                or (
+                    clearance <= 0.55
+                    and (
+                        steering_hold_metric >= 28.0
+                        or bend_severity >= max(float(ELASTICROD_STRICT_RUNTIME_BEND_SEVERITY_TRANSITION), 0.25)
+                    )
+                )
+            )
+        )
+        strict_near_wall_bend_preview = bool(
+            self.is_native_strict
+            and np.isfinite(clearance)
+            and clearance <= max(float(ELASTICROD_STRICT_TIP_WALL_CONTACT_EXIT_MM) + 0.14, 0.44)
+            and (
+                steering_hold_metric >= max(float(ELASTICROD_REALTIME_STEERING_ENTER_DEG) - 8.0, 27.0)
+                or bend_severity >= max(float(ELASTICROD_STRICT_RUNTIME_BEND_SEVERITY_TRANSITION), 0.20)
+                or max_head_stretch >= 0.010
+                or max_stretch >= 0.014
+            )
+        )
         actual_wall_gap = (
             self._native_strict_actual_wall_gap_mm()
             if self.is_native_strict
@@ -3261,7 +4548,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             and np.isfinite(clearance)
             and clearance >= 0.22
             and (not np.isfinite(actual_wall_gap) or actual_wall_gap >= 0.22)
-            and steering_metric < max(float(ELASTICROD_REALTIME_STEERING_ENTER_DEG) + 5.0, 40.0)
+            and max(float(steering_metric), float(steering)) < max(float(ELASTICROD_REALTIME_STEERING_ENTER_DEG) + 5.0, 40.0)
             and bend_severity < max(float(ELASTICROD_STRICT_RUNTIME_BEND_SEVERITY_TRANSITION), 0.35)
             and max_head_stretch <= max(1.25 * head_stretch_soft_limit, 0.025)
             and max_stretch <= 0.02
@@ -3280,59 +4567,98 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         transition_exit_clearance = ELASTICROD_REALTIME_CLEARANCE_TRANSITION_MM + 0.05
 
         if current == 'contact':
+            if safe_barrier_contact:
+                return choose_band('contact', 'safeBarrierContact')
             if hard_wall_contact and (not light_wall_contact):
                 if guided_wall_follow_contact:
                     return choose_band('transition', 'guidedWallFollow')
                 return choose_band('contact', 'wallContact')
+            if wall_contact:
+                return choose_band('transition', 'wallContactHold')
             if light_wall_contact:
                 return choose_band('transition', 'lightWallContact')
             if strict_contact_active:
                 return choose_band('contact', 'barrierContact')
+            if strict_bend_contact_hold:
+                return choose_band('contact', 'bendContactHold')
+            if strict_near_wall_bend_preview:
+                return choose_band('contact', 'nearWallBendPreview')
+            if recent_contact_damping:
+                return choose_band('contact', 'recentContactDamping')
+            if strict_kink_preview:
+                return choose_band('contact', 'headStretchPreview')
             if (
                 steering_contact_active
                 or strict_transition_active
                 or steering_transition_active
                 or steering_precontact_active
+                or recent_contact_release
                 or clearance <= transition_exit_clearance
             ):
-                return choose_band('transition', 'contactReleasePreview')
+                return choose_band('transition', 'contactReleasePreview' if not recent_contact_release else 'recentContactRelease')
             return choose_band('free', 'contactReleased')
 
         if current == 'transition':
+            if safe_barrier_contact:
+                return choose_band('contact', 'safeBarrierContact')
             if hard_wall_contact and (not light_wall_contact):
                 if guided_wall_follow_contact:
                     return choose_band('transition', 'guidedWallFollow')
                 return choose_band('contact', 'wallContact')
+            if wall_contact:
+                return choose_band('transition', 'wallContactHold')
             if light_wall_contact:
                 return choose_band('transition', 'lightWallContact')
             if strict_contact_active:
                 return choose_band('contact', 'barrierContact')
+            if strict_bend_contact_hold:
+                return choose_band('contact', 'bendContactHold')
+            if strict_near_wall_bend_preview:
+                return choose_band('contact', 'nearWallBendPreview')
+            if recent_contact_damping:
+                return choose_band('contact', 'recentContactDamping')
+            if strict_kink_preview:
+                return choose_band('contact', 'headStretchPreview')
             if (
                 steering_contact_active
                 or strict_transition_active
                 or steering_transition_active
                 or steering_precontact_active
+                or recent_contact_release
                 or clearance <= transition_exit_clearance
             ):
-                return choose_band('transition', 'precontactPreview')
+                return choose_band('transition', 'precontactPreview' if not recent_contact_release else 'recentContactRelease')
             return choose_band('free', 'transitionReleased')
 
+        if safe_barrier_contact:
+            return choose_band('contact', 'safeBarrierContact')
         if hard_wall_contact and (not light_wall_contact):
             if guided_wall_follow_contact:
                 return choose_band('transition', 'guidedWallFollow')
             return choose_band('contact', 'wallContact')
+        if wall_contact:
+            return choose_band('transition', 'wallContactHold')
         if light_wall_contact:
             return choose_band('transition', 'lightWallContact')
         if strict_contact_active:
             return choose_band('contact', 'barrierContact')
+        if strict_bend_contact_hold:
+            return choose_band('contact', 'bendContactHold')
+        if strict_near_wall_bend_preview:
+            return choose_band('contact', 'nearWallBendPreview')
+        if recent_contact_damping:
+            return choose_band('contact', 'recentContactDamping')
+        if strict_kink_preview:
+            return choose_band('contact', 'headStretchPreview')
         if (
             steering_contact_active
             or strict_transition_active
             or steering_transition_active
             or steering_precontact_active
+            or recent_contact_release
             or clearance <= ELASTICROD_REALTIME_CLEARANCE_TRANSITION_MM
         ):
-            return choose_band('transition', 'precontactPreview')
+            return choose_band('transition', 'precontactPreview' if not recent_contact_release else 'recentContactRelease')
         return choose_band('free', 'clear')
 
     def _native_realtime_band_settings(self, band: str) -> tuple[float, int, float, float]:
@@ -3510,6 +4836,9 @@ class GuidewireControllerBase(Sofa.Core.Controller):
 
     def _current_push_force_scale(self) -> float:
         if self.is_native_strict:
+            if bool(ELASTICROD_STRICT_ALWAYS_PUSH_FORWARD):
+                self._push_scale_reason = f'band={self._native_runtime_band},alwaysPush'
+                return 1.0
             scale = 1.0
             reasons = [f'band={self._native_runtime_band}']
             hard_wall_contact = self._native_strict_hard_wall_contact()
@@ -3730,15 +5059,21 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         if self._native_external_field_scale is not None:
             if self.is_native_strict:
                 self._native_external_field_scale.value = float(
-                    np.clip(self._native_strict_magnetic_release_scale(), 0.0, 1.0)
+                    np.clip(
+                        self._native_strict_magnetic_release_scale() * self._native_strict_field_damping_scale(),
+                        0.0,
+                        1.0,
+                    )
                 )
             else:
                 self._native_external_field_scale.value = 1.0
         if self._native_external_control_dt is not None:
-            # Strict magnetic steering should ramp in simulation time, not GUI wall-clock time.
-            self._native_external_control_dt.value = float(
-                0.0 if self.is_native_strict else (self._native_control_dt_s if self.use_native_gui_wallclock_control else 0.0)
-            )
+            # Drive the native magnetic ramp/filter with the controller's
+            # actuation dt, not the backend's internal micro-step. Otherwise
+            # the field can take hundreds or thousands of solve substeps to
+            # reach useful strength in strict GUI runs, which makes the tip
+            # look frozen even though the steering target is already correct.
+            self._native_external_control_dt.value = float(max(self._native_control_dt_s, 0.0))
         if self._native_external_surface_clearance is not None:
             clearance = float(self.wall_contact_clearance_mm)
             if self.is_native_strict and not np.isfinite(clearance):
@@ -4117,7 +5452,29 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             per_node_force = self.insertion_direction * 0.0
             mode_desc = 'Kinematic insertion'
         else:
-            if self.is_native_backend and self.is_native_strict and self.native_strict_boundary_driver_enabled:
+            if self.is_native_backend and self.use_native_displacement_feed:
+                if self.is_native_strict and (self.wall_contact_active or self._native_strict_hold_active_this_step):
+                    ramp = float(np.clip(self._native_startup_ramp_scale(), 0.0, 1.0))
+                    contact_push_scale = 0.22
+                    total_force = float(
+                        np.clip(
+                            contact_push_scale
+                            * float(ELASTICROD_STRICT_EXTERNAL_PUSH_FORCE_N)
+                            * ramp
+                            * float(np.clip(self.push_force_scale, 0.0, 1.0)),
+                            0.0,
+                            0.40 * float(ELASTICROD_STRICT_EXTERNAL_PUSH_FORCE_MAX_N),
+                        )
+                    )
+                    mode_desc = 'Strict contact fallback push (ConstantForceField)'
+                else:
+                    total_force = 0.0
+                    mode_desc = (
+                        'Safe displacement push'
+                        if self.is_native_safe else
+                        'Strict direct tail feed'
+                    )
+            elif self.is_native_backend and self.is_native_strict and self.native_strict_boundary_driver_enabled:
                 total_force = 0.0
                 mode_desc = 'Strict native boundary insertion'
             elif self.is_native_backend and self.is_native_strict:
@@ -4158,11 +5515,9 @@ class GuidewireControllerBase(Sofa.Core.Controller):
     def _update_native_axial_path_assist_force(self) -> None:
         if self.native_axial_assist_ff is None:
             return
-        active_indices = (
-            self._native_entry_push_indices()
-            if self.use_native_entry_push_band
-            else [int(i) for i in self.native_axial_assist_indices]
-        )
+        deficit_mm = max(float(self.commanded_push_mm - self.tip_progress_raw_mm), 0.0)
+        assist_targets, distal_mode = self._native_axial_assist_targets(deficit_mm)
+        active_indices = [int(idx) for idx, _ in assist_targets]
         self._set_forcefield_indices(self._native_axial_assist_indices_data, active_indices)
         zero = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0] for _ in active_indices]
         if self.is_native_strict:
@@ -4172,34 +5527,100 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             self.native_axial_assist_ff.forces.value = zero
             return
 
-        deficit_mm = max(float(self.commanded_push_mm - self.tip_progress_raw_mm), 0.0)
-        contact_like = self.wall_contact_active
         if (
             self._native_virtual_sheath_paused
             or self.commanded_push_mm <= 0.0
-            or deficit_mm <= float(ELASTICROD_AXIAL_PATH_ASSIST_DEFICIT_MM)
-            or contact_like
         ):
             self.native_axial_assist_ff.forces.value = zero
             return
 
         threshold = max(float(ELASTICROD_AXIAL_PATH_ASSIST_DEFICIT_MM), 1.0e-6)
         scale = float(np.clip((deficit_mm - threshold) / threshold, 0.0, 1.0))
+        contact_gate = 0.0
+        if self.wall_contact_active:
+            clearance_gate = 0.65
+            if np.isfinite(self.wall_contact_clearance_mm):
+                clearance_gate = float(np.clip((0.30 - self.wall_contact_clearance_mm) / 0.24, 0.0, 1.0))
+            stall_gate = float(np.clip((1.20 - max(self.filtered_tip_forward_speed_mm_s, 0.0)) / 1.20, 0.0, 1.0))
+            contact_gate = max(clearance_gate, stall_gate, 0.65)
+            scale = max(
+                scale,
+                float(ELASTICROD_AXIAL_PATH_ASSIST_CONTACT_MIN_SCALE) * contact_gate,
+            )
+        if scale <= 1.0e-6:
+            self.native_axial_assist_ff.forces.value = zero
+            return
+
+        assist_push_scale = float(
+            np.clip(
+                self.push_force_scale,
+                0.0,
+                max(1.0, float(ELASTICROD_AXIAL_PATH_ASSIST_MAX_PUSH_SCALE)),
+            )
+        )
         total_force = (
             float(ELASTICROD_AXIAL_PATH_ASSIST_FORCE_N)
             * scale
-            * float(np.clip(self.push_force_scale, 0.0, 1.0))
+            * assist_push_scale
             * float(self._native_startup_ramp_scale())
         )
+        if contact_gate > 0.0:
+            total_force *= float(
+                1.0
+                + (float(ELASTICROD_AXIAL_PATH_ASSIST_CONTACT_FORCE_SCALE) - 1.0) * contact_gate
+            )
+        if self.is_native_safe and total_force > 0.0:
+            head_stretch = max(
+                float(self._native_debug_scalar(self._native_debug_max_head_stretch, default=0.0)),
+                0.0,
+            )
+            stretch_profile = self._native_debug_array(self._native_debug_stretch)
+            max_stretch = float(np.max(np.abs(stretch_profile))) if stretch_profile.size else 0.0
+            barrier_nodes = max(self._native_strict_barrier_active_node_count(), 0)
+            anti_kink_gate = 0.0
+            if self.wall_contact_active or barrier_nodes > 0:
+                if np.isfinite(self.wall_contact_clearance_mm):
+                    anti_kink_gate = max(
+                        anti_kink_gate,
+                        float(np.clip((0.18 - float(self.wall_contact_clearance_mm)) / 0.12, 0.0, 1.0)),
+                    )
+                anti_kink_gate = max(
+                    anti_kink_gate,
+                    float(np.clip((head_stretch - 1.2e-2) / 1.2e-2, 0.0, 1.0)),
+                    float(np.clip((max_stretch - 4.0e-2) / 8.0e-2, 0.0, 1.0)),
+                    float(np.clip((barrier_nodes - 4.0) / 4.0, 0.0, 1.0)),
+                )
+            if anti_kink_gate > 0.0:
+                anti_kink_floor = 0.45
+                total_force *= float((1.0 - anti_kink_gate) + anti_kink_gate * anti_kink_floor)
         if total_force <= 0.0:
             self.native_axial_assist_ff.forces.value = zero
             return
 
-        per_node_force = total_force / max(len(active_indices), 1)
+        if distal_mode and len(assist_targets) > 1:
+            path_s = np.asarray([float(s) for _, s in assist_targets], dtype=float)
+            span = max(float(np.max(path_s) - np.min(path_s)), 1.0e-6)
+            weights = 0.85 + 0.45 * (float(np.max(path_s)) - path_s) / span
+        else:
+            weights = np.ones(len(assist_targets), dtype=float)
+        weight_sum = float(np.sum(weights))
+        if weight_sum <= 1.0e-9:
+            self.native_axial_assist_ff.forces.value = zero
+            return
+
+        mode = 'distalWindow' if distal_mode else 'entryWindow'
+        if mode != self._native_axial_assist_mode:
+            print(
+                f'[INFO] [elasticrod-safe] axial assist switched to {mode}: '
+                f'nodes={active_indices}, deficit={deficit_mm:.3f} mm, '
+                f'wallContact={self.wall_contact_active}, totalForce={total_force:.3f} N'
+            )
+            self._native_axial_assist_mode = mode
+
         forces = []
-        for node_idx in active_indices:
-            tangent = self._centerline_tangent(self._node_s(node_idx))
-            force = per_node_force * tangent
+        for (node_idx, path_s_mm), weight in zip(assist_targets, weights):
+            tangent = self._centerline_tangent(path_s_mm if distal_mode else self._node_s(node_idx))
+            force = (total_force * float(weight) / weight_sum) * tangent
             forces.append([float(force[0]), float(force[1]), float(force[2]), 0.0, 0.0, 0.0])
         self.native_axial_assist_ff.forces.value = forces
 
@@ -4328,10 +5749,21 @@ class GuidewireControllerBase(Sofa.Core.Controller):
 
     def _fallback_target_state(self, tip_pos: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         proj_point, proj_s = self._project_to_centerline(np.asarray(tip_pos, dtype=float).reshape(3))
-        self._fallback_nav_s_mm = max(self._fallback_nav_s_mm, float(proj_s))
-        lookahead_s = float(np.clip(self._fallback_nav_s_mm + MAGNETIC_LOOKAHEAD_DISTANCE_MM, 0.0, self.path_len))
+        if self.use_native_displacement_feed:
+            dynamic_lookahead_mm = max(float(ELASTICROD_MAGNETIC_LOOKAHEAD_DISTANCE_MM), 0.5 * self.rest_spacing_mm)
+            dynamic_lookahead_mm *= max(float(self.push_force_scale), 0.5)
+            lookahead_s = float(np.clip(proj_s + dynamic_lookahead_mm, 0.0, self.path_len))
+            self._fallback_nav_s_mm = float(proj_s)
+        else:
+            self._fallback_nav_s_mm = max(self._fallback_nav_s_mm, float(proj_s))
+            lookahead_s = float(np.clip(self._fallback_nav_s_mm + MAGNETIC_LOOKAHEAD_DISTANCE_MM, 0.0, self.path_len))
         target_point = _interp(self.centerline[:, :3], self.centerline_cum, lookahead_s)
-        target_dir = _normalize(target_point - np.asarray(tip_pos, dtype=float).reshape(3))
+        center_pull = proj_point - np.asarray(tip_pos, dtype=float).reshape(3)
+        forward_pull = target_point - proj_point
+        if self.use_native_displacement_feed:
+            target_dir = _normalize(0.70 * forward_pull + 0.30 * center_pull)
+        else:
+            target_dir = _normalize(target_point - np.asarray(tip_pos, dtype=float).reshape(3))
         if np.linalg.norm(target_dir) < 1e-12:
             target_dir = _normalize(target_point - proj_point)
         if np.linalg.norm(target_dir) < 1e-12:
@@ -4365,23 +5797,38 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             return self._fallback_target_point, self._fallback_ba_vector, self._fallback_force_vector
 
         rigid = np.asarray(_read(self._pos), dtype=float)
-        target_point, _ = self._fallback_target_state(tip_pos)
+        target_point, target_dir = self._fallback_target_state(tip_pos)
         moment_dir = self._fallback_head_model.head_direction(rigid)
         if np.linalg.norm(moment_dir) < 1e-12:
             moment_dir = tip_dir
 
-        ba_dir = self._fallback_nearest_segment_tangent(tip_pos)
+        # Use direction from tip to target point for magnetic field, not centerline tangent
+        # This ensures the magnetic field always pulls the tip toward the target
+        ba_dir = target_dir.copy()
         self._fallback_field_controller.filtered_direction = ba_dir.copy()
         self._fallback_field_controller.field.set_direction(ba_dir)
         b_vec = self._fallback_field_controller.field.vector.copy()
-        torque = self._fallback_field_controller.magnetic_torque(moment_dir)
+
+        # Calculate angle between current tip direction and target direction
+        # Only apply magnetic torque when there's a significant bend ahead
+        tip_to_target_angle_deg = np.degrees(np.arccos(np.clip(np.dot(moment_dir, ba_dir), -1.0, 1.0)))
+        magnetic_activation_threshold_deg = 15.0  # Only activate magnetic field when bend > 15 degrees
+
+        if tip_to_target_angle_deg > magnetic_activation_threshold_deg:
+            torque = self._fallback_field_controller.magnetic_torque(moment_dir)
+        else:
+            # No significant bend ahead, disable magnetic torque to avoid unwanted deflection
+            torque = np.zeros(3, dtype=float)
+
         force = np.zeros(3, dtype=float)
         if self.tip_torque_ff is not None:
-            self.tip_torque_ff.forces.value = self._fallback_field_controller.distribute_wrench_as_wrenches(
-                force_world=force,
-                torque_world=torque,
-                weights=self._fallback_torque_weights if self._fallback_torque_weights.size else np.ones(len(self.distal_indices), dtype=float),
-            )
+            # Apply torque ONLY to the tip node, not distributed across all magnetic head nodes
+            # This prevents unrealistic internal bending when there's no external constraint
+            wrenches = [[0.0, 0.0, 0.0, 0.0, 0.0, 0.0] for _ in self.distal_indices]
+            if len(self.distal_indices) > 0:
+                # Apply full torque only to the last node (tip)
+                wrenches[-1] = [0.0, 0.0, 0.0, float(torque[0]), float(torque[1]), float(torque[2])]
+            self.tip_torque_ff.forces.value = wrenches
 
         self._fallback_target_point = np.asarray(target_point, dtype=float).reshape(3)
         self._fallback_ba_vector = _normalize(b_vec)
@@ -4413,7 +5860,12 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             )
         if refresh_visuals:
             self._update_target_marker(target_point)
-            self._update_force_arrow(force_vector)
+            # The UI arrow is intended to show the magnetic field direction.
+            # In the native strict path `debugForceVector` is the resultant
+            # distal nodal force, which can look outward even after `baVector`
+            # has already rotated inward toward the centerline.
+            arrow_vector = ba_vector if self.is_native_backend else force_vector
+            self._update_force_arrow(arrow_vector)
             self._native_runtime_last_visual_step = self.step_count
             self._native_runtime_last_visual_band = self._native_runtime_band
         return target_point, ba_vector, force_vector
@@ -4472,6 +5924,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                     f'supportCorridorOccupancy={support_occupancy} driveWindowOccupancy={drive_occupancy} '
                     f'baseProgress={self.base_progress_mm:.4f} mm midProgress={self.mid_progress_mm:.4f} mm '
                     f'tipProgress={self.tip_axial_progress_mm:.4f} mm tipPathProgress={self.tip_progress_raw_mm:.4f} mm '
+                    f'feedBoost={self._native_strict_guided_feed_boost():.3f} '
                     f'maxStretch={self._native_debug_max_abs(self._native_debug_stretch):.4e} '
                     f'headStretch={self._native_strict_max_head_stretch():.4e} '
                     f'minClearance={self._native_strict_min_lumen_clearance_mm():.4f} mm '
@@ -4602,12 +6055,29 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         return clearance
 
     def _native_strict_actual_wall_gap_mm(self) -> float:
-        clearance = self._native_strict_min_lumen_clearance_mm()
-        if not np.isfinite(clearance):
-            return clearance
         if self.native_strict_barrier_enabled:
+            clearance = self._native_strict_min_lumen_clearance_mm()
+            if not np.isfinite(clearance):
+                return clearance
             return float(clearance + float(ELASTICROD_STRICT_BARRIER_SAFETY_MARGIN_MM))
-        return float(clearance)
+        head_profile_clearance = self._head_wall_clearance()
+        head_surface_clearance = self._head_surface_clearance()
+        false_profile_override = self._native_strict_false_profile_contact_clearance_mm(
+            head_profile_clearance_mm=float(head_profile_clearance),
+            head_surface_clearance_mm=float(head_surface_clearance),
+        )
+        if false_profile_override is not None:
+            return float(false_profile_override)
+        surface_trustworthy = self._native_strict_head_surface_contact_is_trustworthy(
+            float(head_surface_clearance),
+            native_gap_mm=float(head_profile_clearance),
+            head_profile_clearance_mm=float(head_profile_clearance),
+        )
+        if surface_trustworthy and np.isfinite(head_surface_clearance):
+            if np.isfinite(head_profile_clearance):
+                return float(min(head_profile_clearance, head_surface_clearance))
+            return float(head_surface_clearance)
+        return float(head_profile_clearance)
 
     def _native_strict_barrier_active_node_count(self) -> int:
         return max(self._native_debug_int(self._native_debug_barrier_active_node_count, default=0), 0)
@@ -4861,6 +6331,80 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             max_boundary_torque = self._native_debug_scalar(self._native_debug_max_boundary_torque)
             max_bend_residual = self._native_debug_scalar(self._native_debug_max_bend_residual)
             barrier_force = self._debug_vector(self._native_debug_barrier_force_vector, [0.0, 0.0, 0.0])
+
+        safe_contact_clearance_mm = min(
+            float(v)
+            for v in (
+                self.surface_wall_contact_clearance_mm,
+                self.wall_contact_clearance_mm,
+            )
+            if np.isfinite(float(v))
+        ) if any(np.isfinite(float(v)) for v in (self.surface_wall_contact_clearance_mm, self.wall_contact_clearance_mm)) else float('inf')
+        distal_edge_compressed = bool(
+            edge_lengths.size > 0 and float(edge_lengths[-1]) < 0.94 * float(self.rest_spacing_mm)
+        )
+        stalled_in_contact = bool(
+            self.wall_contact_active
+            and self.filtered_tip_forward_speed_mm_s <= 0.80
+            and self.commanded_push_mm >= self.tip_progress_mm + 0.35
+        )
+        severe_distal_head_kink = bool(
+            max_stretch >= 0.085
+            or max_head_stretch >= 2.5e-3
+            or (distal_edge_compressed and max_twist >= 0.035)
+        )
+        near_surface_scrape = bool(
+            safe_contact_clearance_mm <= 0.02
+            and (
+                max_stretch >= 0.045
+                or max_head_stretch >= 9.0e-4
+                or distal_edge_compressed
+            )
+        )
+        recent_safe_recovery = bool(
+            self.is_native_safe
+            and self._native_safe_last_recovery_step >= 0
+            and self.step_count - self._native_safe_last_recovery_step <= 4
+        )
+        distal_head_recovery_override = bool(
+            max_stretch >= 5.0e-2
+            or max_head_stretch >= 1.0e-2
+            or barrier_active_nodes >= 3
+            or safe_contact_clearance_mm <= 0.10
+        )
+        distal_head_recovery = bool(
+            self.is_native_safe
+            and ELASTICROD_ENABLE_SAFE_RECOVERY
+            and (
+                self._native_safe_recovery_cooldown <= 0
+                or distal_head_recovery_override
+            )
+            and finite_state
+            and self.wall_contact_active
+            and safe_contact_clearance_mm >= -0.08
+            and (
+                severe_distal_head_kink
+                or near_surface_scrape
+                or (recent_safe_recovery and max_head_stretch >= 6.0e-3)
+            )
+            and (
+                stalled_in_contact
+                or safe_contact_clearance_mm <= 0.12
+                or max_twist >= 0.08
+                or max_head_stretch >= 1.2e-2
+                or barrier_active_nodes >= 4
+                or recent_safe_recovery
+            )
+        )
+        if distal_head_recovery:
+            self._recover_native_safe_distal_head(
+                max_stretch=max_stretch,
+                max_head_stretch=max_head_stretch,
+                contact_clearance_mm=safe_contact_clearance_mm,
+                barrier_active_nodes=barrier_active_nodes,
+            )
+            return
+
         if should_log:
             level = 'WARN' if warn else 'INFO'
             print(
@@ -4928,7 +6472,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 or max_ang_speed >= ELASTICROD_SAFE_RECOVERY_ANGULAR_SPEED_RAD_S
             )
         )
-        surface_emergency_margin_mm = max(0.5, 2.0 * float(WIRE_RADIUS_MM))
+        surface_emergency_margin_mm = max(0.5, 2.0 * float(self._contact_radius_mm()))
         if self.is_native_strict:
             failfast = (
                 (not finite_state)
@@ -4967,16 +6511,24 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         if centers.size:
             self._diagnostic_prev_centers = centers.copy()
             if self.is_native_safe and ELASTICROD_ENABLE_SAFE_RECOVERY:
-                self._native_safe_last_stable_pos = positions.copy()
-                self._native_safe_last_stable_vel = velocities.copy()
-                if self._rod_state_pos is not None:
-                    self._native_safe_last_stable_rod_pos = np.array(_read(self._rod_state_pos), dtype=float, copy=True)
-                if self._rod_state_vel is not None:
-                    self._native_safe_last_stable_rod_vel = np.array(_read(self._rod_state_vel), dtype=float, copy=True)
-                if self._rod_state_free_pos is not None:
-                    self._native_safe_last_stable_rod_free_pos = np.array(_read(self._rod_state_free_pos), dtype=float, copy=True)
-                if self._rod_state_free_vel is not None:
-                    self._native_safe_last_stable_rod_free_vel = np.array(_read(self._rod_state_free_vel), dtype=float, copy=True)
+                light_contact_snapshot = bool(self.wall_contact_active or barrier_active_nodes > 0)
+                if light_contact_snapshot:
+                    snapshot_clearance_ok = (not np.isfinite(safe_contact_clearance_mm)) or safe_contact_clearance_mm >= 0.10
+                    snapshot_shape_ok = max_stretch <= 2.0e-2 and max_head_stretch <= 1.5e-2
+                else:
+                    snapshot_clearance_ok = (not np.isfinite(safe_contact_clearance_mm)) or safe_contact_clearance_mm >= 0.05
+                    snapshot_shape_ok = max_stretch <= 0.045 and max_head_stretch <= 6.0e-3
+                if finite_state and snapshot_clearance_ok and snapshot_shape_ok:
+                    self._native_safe_last_stable_pos = positions.copy()
+                    self._native_safe_last_stable_vel = velocities.copy()
+                    if self._rod_state_pos is not None:
+                        self._native_safe_last_stable_rod_pos = np.array(_read(self._rod_state_pos), dtype=float, copy=True)
+                    if self._rod_state_vel is not None:
+                        self._native_safe_last_stable_rod_vel = np.array(_read(self._rod_state_vel), dtype=float, copy=True)
+                    if self._rod_state_free_pos is not None:
+                        self._native_safe_last_stable_rod_free_pos = np.array(_read(self._rod_state_free_pos), dtype=float, copy=True)
+                    if self._rod_state_free_vel is not None:
+                        self._native_safe_last_stable_rod_free_vel = np.array(_read(self._rod_state_free_vel), dtype=float, copy=True)
 
     def _recover_native_safe_state(
         self,
@@ -5050,6 +6602,9 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         cooldown_steps = int(ELASTICROD_SAFE_RECOVERY_COOLDOWN_STEPS) if hard_recovery else 0
         self.commanded_push_mm = float(max(self.commanded_push_mm - retract_mm, 0.0))
         self._native_safe_recovery_cooldown = max(cooldown_steps, 0)
+        self._native_safe_last_recovery_step = self.step_count
+        self._native_safe_last_recovery_kind = 'full'
+        self._native_safe_distal_recovery_streak = 0
         if self._native_commanded_insertion is not None:
             self._native_commanded_insertion.value = float(self.commanded_push_mm)
         if self._native_commanded_twist is not None:
@@ -5071,6 +6626,220 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             f'maxAngSpeed={max_ang_speed:.3f} rad/s maxStretch={max_stretch:.4e} '
             f'mode={"hard" if hard_recovery else "soft"} '
             f'cooldownSteps={self._native_safe_recovery_cooldown} commandedPush={self.commanded_push_mm:.3f} mm'
+        )
+
+    def _recover_native_safe_distal_head(
+        self,
+        *,
+        max_stretch: float,
+        max_head_stretch: float,
+        contact_clearance_mm: float,
+        barrier_active_nodes: int,
+    ) -> None:
+        if (
+            self._native_safe_last_stable_rod_pos is None
+            or self._rod_state_pos is None
+        ):
+            return
+
+        rod_pos = np.array(_read(self._rod_state_pos), dtype=float, copy=True)
+        stable_rod_pos = np.array(self._native_safe_last_stable_rod_pos, dtype=float, copy=True)
+        if rod_pos.ndim != 2 or stable_rod_pos.ndim != 2 or rod_pos.shape[0] == 0:
+            return
+
+        n = min(int(rod_pos.shape[0]), int(stable_rod_pos.shape[0]))
+        head_node_count = max(self.magnetic_head_edge_count + 3, 5)
+        head_start = max(n - head_node_count, 0)
+        recent_recovery_steps = (
+            int(self.step_count - self._native_safe_last_recovery_step)
+            if self._native_safe_last_recovery_step >= 0 and self.step_count >= self._native_safe_last_recovery_step
+            else 10**9
+        )
+        repeated_recovery = recent_recovery_steps <= 6
+        if self._native_safe_last_recovery_kind == 'distal' and recent_recovery_steps <= 2:
+            self._native_safe_distal_recovery_streak += 1
+        else:
+            self._native_safe_distal_recovery_streak = 1
+        persistent_recovery = self._native_safe_distal_recovery_streak >= 5
+        severe_recovery = bool(
+            max_head_stretch >= 1.2e-2
+            or max_stretch >= 5.5e-2
+            or barrier_active_nodes >= 4
+            or contact_clearance_mm < 0.02
+        )
+        extreme_recovery = bool(
+            max_head_stretch >= 2.0e-2
+            or max_stretch >= 7.5e-2
+            or barrier_active_nodes >= 5
+            or contact_clearance_mm < -0.02
+        )
+        escalate_to_full_recovery = bool(
+            repeated_recovery
+            and self._native_safe_distal_recovery_streak >= 6
+            and (
+                (max_stretch >= 0.16 and contact_clearance_mm < 0.05)
+                or max_head_stretch >= 3.8e-2
+                or barrier_active_nodes >= 10
+                or contact_clearance_mm < 0.0
+            )
+        )
+        if (
+            escalate_to_full_recovery
+            and self._native_safe_last_stable_pos is not None
+            and self._native_safe_last_stable_rod_pos is not None
+        ):
+            print(
+                '[INFO] [elasticrod-safe] escalating distal recovery to full-state restore: '
+                f'step={self.step_count} streak={self._native_safe_distal_recovery_streak} '
+                f'contactClearance={contact_clearance_mm:.4f} mm '
+                f'maxStretch={max_stretch:.4e} maxHeadStretch={max_head_stretch:.4e}'
+            )
+            self._recover_native_safe_state(
+                finite_state=True,
+                max_disp=0.0,
+                max_lin_speed=0.0,
+                max_ang_speed=0.0,
+                max_stretch=max_stretch,
+            )
+            return
+        proximal_extension = 1
+        if repeated_recovery or barrier_active_nodes >= 3:
+            proximal_extension += 2
+        if severe_recovery:
+            proximal_extension += 2
+        if extreme_recovery:
+            proximal_extension += 1
+        if persistent_recovery:
+            proximal_extension += 2
+        blend_start = max(head_start - 1 - proximal_extension, 0)
+        stretch_profile = self._native_debug_array(self._native_debug_stretch)
+        if stretch_profile.size:
+            hot_edge = int(np.argmax(np.abs(stretch_profile)))
+            hot_edge_stretch = float(abs(stretch_profile[hot_edge]))
+            if hot_edge_stretch >= 1.5e-2:
+                hot_zone_start = max(min(hot_edge, n - 2) - 3, 0)
+                if repeated_recovery:
+                    hot_zone_start = max(hot_zone_start - 2, 0)
+                if severe_recovery:
+                    hot_zone_start = max(hot_zone_start - 1, 0)
+                if persistent_recovery:
+                    hot_zone_start = max(hot_zone_start - 2, 0)
+                blend_start = min(blend_start, hot_zone_start)
+
+        rod_vel = (
+            np.array(_read(self._rod_state_vel), dtype=float, copy=True)
+            if self._rod_state_vel is not None
+            else None
+        )
+        rod_free_pos = (
+            np.array(_read(self._rod_state_free_pos), dtype=float, copy=True)
+            if self._rod_state_free_pos is not None
+            else None
+        )
+        rod_free_vel = (
+            np.array(_read(self._rod_state_free_vel), dtype=float, copy=True)
+            if self._rod_state_free_vel is not None
+            else None
+        )
+
+        for idx in range(blend_start, n):
+            if idx < head_start:
+                proximal_alpha = float((idx - blend_start) / max(head_start - blend_start, 1))
+                proximal_blend_lo = 0.24
+                proximal_blend_hi = 0.42
+                if repeated_recovery:
+                    proximal_blend_lo += 0.08
+                    proximal_blend_hi += 0.10
+                if severe_recovery:
+                    proximal_blend_lo += 0.06
+                    proximal_blend_hi += 0.08
+                if extreme_recovery:
+                    proximal_blend_lo += 0.04
+                    proximal_blend_hi += 0.05
+                if persistent_recovery:
+                    proximal_blend_lo += 0.06
+                    proximal_blend_hi += 0.08
+                blend = float(np.clip(
+                    proximal_blend_lo + (proximal_blend_hi - proximal_blend_lo) * proximal_alpha,
+                    0.0,
+                    0.78,
+                ))
+            else:
+                alpha = float((idx - head_start) / max((n - 1) - head_start, 1))
+                distal_blend_lo = 0.45
+                if repeated_recovery:
+                    distal_blend_lo += 0.08
+                if severe_recovery:
+                    distal_blend_lo += 0.08
+                if extreme_recovery:
+                    distal_blend_lo += 0.05
+                if persistent_recovery:
+                    distal_blend_lo += 0.08
+                blend = float(np.clip(distal_blend_lo + (1.0 - distal_blend_lo) * alpha, 0.0, 1.0))
+            rod_pos[idx, :3] = (1.0 - blend) * rod_pos[idx, :3] + blend * stable_rod_pos[idx, :3]
+            if rod_free_pos is not None and idx < rod_free_pos.shape[0]:
+                stable_free = (
+                    np.array(self._native_safe_last_stable_rod_free_pos, dtype=float, copy=False)
+                    if self._native_safe_last_stable_rod_free_pos is not None
+                    else stable_rod_pos
+                )
+                source = stable_free[idx, :3] if idx < stable_free.shape[0] else stable_rod_pos[idx, :3]
+                rod_free_pos[idx, :3] = (1.0 - blend) * rod_free_pos[idx, :3] + blend * source
+            if rod_vel is not None and idx < rod_vel.shape[0]:
+                rod_vel[idx, :] = 0.0
+            if rod_free_vel is not None and idx < rod_free_vel.shape[0]:
+                rod_free_vel[idx, :] = 0.0
+
+        with _writeable(self._rod_state_pos) as out_pos:
+            out_pos[:] = rod_pos
+        if self._rod_state_free_pos is not None and rod_free_pos is not None:
+            with _writeable(self._rod_state_free_pos) as out_free_pos:
+                out_free_pos[:] = rod_free_pos
+        if self._rod_state_vel is not None and rod_vel is not None:
+            with _writeable(self._rod_state_vel) as out_vel:
+                out_vel[:] = rod_vel
+        if self._rod_state_free_vel is not None and rod_free_vel is not None:
+            with _writeable(self._rod_state_free_vel) as out_free_vel:
+                out_free_vel[:] = rod_free_vel
+
+        try:
+            self.rod_model.reinit()
+        except Exception as exc:
+            print(f'[WARN] [elasticrod-safe] distal-head reinit failed: {exc}')
+
+        rollback_mm = 0.0
+        self.commanded_push_mm = float(max(self.commanded_push_mm - rollback_mm, 0.0))
+        if self._native_commanded_insertion is not None:
+            self._native_commanded_insertion.value = float(self.commanded_push_mm)
+        if self._native_commanded_twist is not None:
+            self._native_commanded_twist.value = 0.0
+        cooldown_steps = 1
+        if repeated_recovery or severe_recovery:
+            cooldown_steps = max(cooldown_steps, 2)
+        if extreme_recovery:
+            cooldown_steps = max(cooldown_steps, 3)
+        if persistent_recovery:
+            cooldown_steps = max(cooldown_steps, 4)
+        self._native_safe_recovery_cooldown = max(self._native_safe_recovery_cooldown, cooldown_steps)
+        self._native_safe_last_recovery_step = self.step_count
+        self._native_safe_last_recovery_kind = 'distal'
+        self._sync_native_rod_to_display()
+        if self._vel is not None:
+            rigid_vel = np.array(_read(self._vel), dtype=float, copy=True)
+            if rigid_vel.ndim == 2 and rigid_vel.shape[0] >= n:
+                rigid_vel[blend_start:n, :] = 0.0
+                with _writeable(self._vel) as out_rigid_vel:
+                    out_rigid_vel[:] = rigid_vel
+        self._invalidate_geometry_cache()
+        self._invalidate_surface_probe_cache()
+        print(
+            '[WARN] [elasticrod-safe] distal-head recovery triggered: '
+            f'step={self.step_count} contactClearance={contact_clearance_mm:.4f} mm '
+            f'maxStretch={max_stretch:.4e} maxHeadStretch={max_head_stretch:.4e} '
+            f'headNodes={list(range(head_start, n))} barrierNodes={int(barrier_active_nodes)} '
+            f'rollback={rollback_mm:.3f} mm cooldown={cooldown_steps} repeated={repeated_recovery} '
+            f'streak={self._native_safe_distal_recovery_streak} '
+            f'commandedPush={self.commanded_push_mm:.3f} mm'
         )
 
     def onAnimateBeginStep(self, dt):
@@ -5115,7 +6884,6 @@ class BeamGuidewireController(GuidewireControllerBase):
         self._update_smoothed_push_scale(dt)
         if self.use_kinematic_beam_insertion:
             self._advance_commanded_push(dt)
-            self._update_estimated_push_mm()
             self._constrain_wire()
             self._update_estimated_push_mm()
         else:
@@ -5161,6 +6929,7 @@ class ElasticRodGuidewireController(GuidewireControllerBase):
         self._update_native_runtime_profile()
         self._update_smoothed_push_scale(actuation_dt)
         self._advance_commanded_push(actuation_dt)
+        self._update_displacement_push(actuation_dt)
         self._update_estimated_push_mm()
         self._write_native_backend_commands()
         if not self._force_diag_printed:
@@ -5185,16 +6954,29 @@ class ElasticRodGuidewireController(GuidewireControllerBase):
                     )
                 else:
                     external_push_nodes = [int(i) for i in self._strict_hand_push_indices()]
-                    print(
-                        f'[INFO] Strict elasticrod insertion enabled: externalPushNodes={external_push_nodes}, '
-                        f'externalSupportLength={self.external_support_length_mm:.3f} mm, '
-                        f'externalSupportRadius={self.external_support_radius_mm:.3f} mm, '
-                        f'pushForce={ELASTICROD_STRICT_EXTERNAL_PUSH_FORCE_N:.3f}/{ELASTICROD_STRICT_EXTERNAL_PUSH_FORCE_MAX_N:.3f} N, '
-                        f'commandedSpeed={effective_push_speed:.3f} mm/s, navigationMode={self.navigation_mode}, '
-                        f'stabilizationMode={ELASTICROD_STABILIZATION_MODE}, '
-                        f'runtimeProfile={ELASTICROD_RUNTIME_PROFILE}, startupRamp={startup_ramp_s:.3f} s, '
-                        f'guiWallclockControl={self.use_native_gui_wallclock_control}'
-                    )
+                    if self.use_native_displacement_feed:
+                        print(
+                            f'[INFO] Strict elasticrod insertion enabled: directTailFeed=True, '
+                            f'externalPushNodes={external_push_nodes}, '
+                            f'externalSupportLength={self.external_support_length_mm:.3f} mm, '
+                            f'externalSupportRadius={self.external_support_radius_mm:.3f} mm, '
+                            f'pushForce=0.000/0.000 N, '
+                            f'commandedSpeed={effective_push_speed:.3f} mm/s, navigationMode={self.navigation_mode}, '
+                            f'stabilizationMode={ELASTICROD_STABILIZATION_MODE}, '
+                            f'runtimeProfile={ELASTICROD_RUNTIME_PROFILE}, startupRamp={startup_ramp_s:.3f} s, '
+                            f'guiWallclockControl={self.use_native_gui_wallclock_control}'
+                        )
+                    else:
+                        print(
+                            f'[INFO] Strict elasticrod insertion enabled: externalPushNodes={external_push_nodes}, '
+                            f'externalSupportLength={self.external_support_length_mm:.3f} mm, '
+                            f'externalSupportRadius={self.external_support_radius_mm:.3f} mm, '
+                            f'pushForce={ELASTICROD_STRICT_EXTERNAL_PUSH_FORCE_N:.3f}/{ELASTICROD_STRICT_EXTERNAL_PUSH_FORCE_MAX_N:.3f} N, '
+                            f'commandedSpeed={effective_push_speed:.3f} mm/s, navigationMode={self.navigation_mode}, '
+                            f'stabilizationMode={ELASTICROD_STABILIZATION_MODE}, '
+                            f'runtimeProfile={ELASTICROD_RUNTIME_PROFILE}, startupRamp={startup_ramp_s:.3f} s, '
+                            f'guiWallclockControl={self.use_native_gui_wallclock_control}'
+                        )
             else:
                 tail_push_indices = (
                     self._native_entry_push_indices()
@@ -5243,6 +7025,12 @@ class ElasticRodGuidewireController(GuidewireControllerBase):
         if strict_corrected > 0 or strict_clipped > 0:
             self._update_wall_contact_state()
         if self.enable_vessel_lumen_constraint:
+            self._constrain_wire()
+            self._update_estimated_push_mm()
+            self._update_wall_contact_state()
+            self._emit_native_diagnostics()
+            super()._update_camera_after_solve()
+            return
             # `elasticrod` 闁告艾娴烽顒勫箮婵犲懎骞囬柛鎰噹閻ｃ劑宕楅妸锕€顫岀憸鎷岄哺閺備線宕氶幍鏂ュ亾濠婂嫮婀撮悷娆欑到閹宕楀鍐亢闁炽儲绻堝Ο浣糕枔绾板绐?            # 闁稿繐鐗愰鈧柛妯煎枔閺佹捇寮堕崱鏇犵Ъ闁?SOFA 闁规亽鍎磋闂佺偓鍎抽悾顒勫箣閹邦亞顏辨繛鍡磿濠€锛勨偓鍦仜婵繒鈧冻闄勫ú鍧楀棘鐢喚绀?            # 闁告劕绉磋ぐ褏鈧數鎳撻崙锛勭磼韫囨梹顫栭柡鍕劤閸ゎ參鎳欓弮鍌涚暠闁煎搫鍊婚崑锝夊磻濮橆厽浠橀悘蹇撶箣閹便劌顫㈤敐蹇曠闂侇剙鐏濋崢銈囨嫻閺夋埈姊块柡鍐煐閺嗙喖宕愭總鍓叉＇闁轰緤绲婚埀?            self._constrain_wire()
             self._update_estimated_push_mm()
         elif strict_corrected > 0 or strict_clipped > 0:

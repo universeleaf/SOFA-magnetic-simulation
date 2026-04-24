@@ -1,0 +1,276 @@
+{
+  "source_vessel_mesh": "C:\\Users\\wty05\\Desktop\\Sofa\\vessel_final_4_0108.stl",
+  "project_vessel_mesh": "C:\\Users\\wty05\\Desktop\\Sofa\\guidewire_scene\\assets\\vessel_final_4_0108.stl",
+  "project_runtime_vessel_mesh": "C:\\Users\\wty05\\Desktop\\Sofa\\guidewire_scene\\assets\\vessel_final_4_0108_runtime.obj",
+  "source_centerline_points": "C:\\Users\\wty05\\Desktop\\Sofa\\vessel_centerline_4_0108.npy",
+  "project_centerline_points": "C:\\Users\\wty05\\Desktop\\Sofa\\guidewire_scene\\assets\\centerline\\vessel_centerline_4_0108.npy",
+  "copied_vessel_into_project": true,
+  "copied_centerline_into_project": true,
+  "route_name": "vessel_4_0108_full",
+  "raw_point_count": 7353,
+  "aligned_point_count": 7353,
+  "raw_bbox_min": [
+    91.0,
+    10.0,
+    25.0
+  ],
+  "raw_bbox_max": [
+    394.0,
+    468.0,
+    240.0
+  ],
+  "mesh_bbox_min": [
+    31.611467361450195,
+    0.554587185382843,
+    4.6215596199035645
+  ],
+  "mesh_bbox_max": [
+    149.92340087890625,
+    174.14036560058594,
+    91.50688171386719
+  ],
+  "scale_xyz": [
+    0.39046843374523,
+    0.3790082640002388,
+    0.4041177793990734
+  ],
+  "translation_xyz": [
+    -3.9211601093657364,
+    -3.235495454619545,
+    -5.48138486507327
+  ],
+  "selected_route_metrics": {
+    "selection_mode": "preferred_endpoints",
+    "start_index": 532,
+    "end_index": 7177,
+    "vertical_span_raw": 440.0,
+    "geodesic_length_raw": 757.4980506922944,
+    "straight_length_raw": 463.2580274533837,
+    "tortuosity": 1.635153641819017,
+    "mean_turn_deg": 35.45416159012826,
+    "max_turn_deg": 109.47122063449069,
+    "path_point_count": 582,
+    "start_point_raw": [
+      194.0,
+      28.0,
+      93.0
+    ],
+    "end_point_raw": [
+      262.0,
+      468.0,
+      221.0
+    ]
+  },
+  "original_route_stats": {
+    "point_count": 582,
+    "length_mm": 294.5497979221456,
+    "mean_turn_deg": 35.734928464011155,
+    "max_turn_deg": 109.65009220167117
+  },
+  "smoothed_route_stats": {
+    "resample_step_mm": 1.0,
+    "point_count": 248,
+    "length_mm": 247.72603272884544,
+    "mean_turn_deg": 5.716962821222202,
+    "max_turn_deg": 41.825138697043954,
+    "centering_radius_mm": 5.5,
+    "centering_blend": 0.4,
+    "centering_max_shift_mm": 1.5,
+    "surface_centering_applied": 1,
+    "surface_centering_passes": 3,
+    "surface_centering_blend": 0.72,
+    "surface_centering_max_shift_mm": 2.2,
+    "surface_centering_guide_penalty": 0.16,
+    "surface_centering_smooth_penalty": 0.24,
+    "surface_clearance_min_before_mm": 0.019024993567281195,
+    "surface_clearance_mean_before_mm": 1.516209307882512,
+    "surface_clearance_tail_min_before_mm": 0.03558843040700025,
+    "surface_clearance_min_after_mm": 0.30010114284165335,
+    "surface_clearance_mean_after_mm": 2.7273177395258075,
+    "surface_clearance_tail_min_after_mm": 0.30010114284165335,
+    "entry_axis_direction_sample_mm": 6.0,
+    "entry_axis_lock_length_mm": 8.0,
+    "entry_axis_blend_out_length_mm": 14.0,
+    "entry_axis_max_shift_mm": 4.0
+  },
+  "pre_entry_centering_route_stats": {
+    "resample_step_mm": 1.0,
+    "point_count": 248,
+    "length_mm": 246.18409442642968,
+    "mean_turn_deg": 5.491091554915199,
+    "max_turn_deg": 41.825138697043954,
+    "centering_radius_mm": 5.5,
+    "centering_blend": 0.4,
+    "centering_max_shift_mm": 1.5,
+    "surface_centering_applied": 1,
+    "surface_centering_passes": 3,
+    "surface_centering_blend": 0.72,
+    "surface_centering_max_shift_mm": 2.2,
+    "surface_centering_guide_penalty": 0.16,
+    "surface_centering_smooth_penalty": 0.24,
+    "surface_clearance_min_before_mm": 0.019024993567281195,
+    "surface_clearance_mean_before_mm": 1.516209307882512,
+    "surface_clearance_tail_min_before_mm": 0.03558843040700025,
+    "surface_clearance_min_after_mm": 0.30010114284165335,
+    "surface_clearance_mean_after_mm": 2.7273177395258075,
+    "surface_clearance_tail_min_after_mm": 0.30010114284165335
+  },
+  "aligned_route_start_mm": [
+    72.48257853965018,
+    6.822940846299709,
+    34.402918183002264
+  ],
+  "aligned_route_end_mm": [
+    98.38156953188451,
+    174.1403720974922,
+    83.82864438212195
+  ],
+  "aligned_route_vertical_span_mm": 167.3174312511925,
+  "runtime_mesh_stats": {
+    "quantization_mm": 0.7,
+    "input_vertex_count": 1981752,
+    "input_face_count": 660584,
+    "cluster_vertex_count": 80394,
+    "output_vertex_count": 80394,
+    "output_face_count": 160847
+  },
+  "route_entry_axis_centering": {
+    "applied": true,
+    "axis_origin_mm": [
+      72.48257853965018,
+      6.822940846299709,
+      34.402918183002264
+    ],
+    "axis_direction": [
+      -0.12919406705276576,
+      0.9582916957378629,
+      0.25492335891051027
+    ],
+    "lock_length_mm": 8.0,
+    "blend_out_length_mm": 14.0,
+    "max_shift_limit_mm": 4.0,
+    "start_shift_mm": 2.4554283262912073,
+    "max_point_shift_mm": 3.080094509517643,
+    "mean_point_shift_mm": 0.12349397475704457,
+    "axis_radial_before": {
+      "sample_length_mm": 12.0,
+      "mean_radial_mm": 2.802117740916188,
+      "max_radial_mm": 4.140500678371749,
+      "start_radial_mm": 2.4552643645996732,
+      "end_radial_mm": 4.140500678371749
+    },
+    "axis_radial_after": {
+      "sample_length_mm": 12.0,
+      "mean_radial_mm": 0.2488122404009064,
+      "max_radial_mm": 1.9019130591792133,
+      "start_radial_mm": 0.0,
+      "end_radial_mm": 1.9019130591792133
+    }
+  },
+  "provisional_runtime_inlet_opening": {
+    "enabled": true,
+    "applied": true,
+    "backoff_mm": 0.0,
+    "route_start_mm": [
+      71.82971603720887,
+      7.376735937387141,
+      32.10156861904055
+    ],
+    "route_tangent": [
+      -0.0035118105853555025,
+      0.93433539230757,
+      0.35637766746510857
+    ],
+    "input_vertex_count": 80394,
+    "input_face_count": 160847,
+    "output_vertex_count": 79744,
+    "output_face_count": 159421,
+    "removed_face_count": 1426,
+    "plane_point_mm": [
+      71.82971603720887,
+      7.376735937387141,
+      32.10156861904055
+    ],
+    "plane_normal": [
+      -0.0035118105853555034,
+      0.9343353923075702,
+      0.3563776674651086
+    ],
+    "keep_positive_side": true
+  },
+  "provisional_runtime_inlet_boundary": {
+    "found": true,
+    "component_vertex_count": 52,
+    "center_mm": [
+      72.48257853965018,
+      6.822940846299709,
+      34.402918183002264
+    ],
+    "mean_radius_mm": 4.735156220874165,
+    "max_radius_mm": 5.083160897978895,
+    "axis_radial_offset_mm": 2.4552643645996732,
+    "axis_axial_offset_mm": -0.028375437973759743,
+    "plane_residual_mean_mm": 0.49140215231769285,
+    "plane_residual_max_mm": 1.17273132711481,
+    "entry_axis_direction": [
+      -0.12919406705276576,
+      0.9582916957378629,
+      0.25492335891051027
+    ],
+    "component_count": 61,
+    "selection_score": 2.5880463059699124
+  },
+  "runtime_inlet_opening": {
+    "enabled": true,
+    "applied": true,
+    "backoff_mm": 0.0,
+    "route_start_mm": [
+      72.48257853965018,
+      6.822940846299709,
+      34.402918183002264
+    ],
+    "route_tangent": [
+      -0.12919406705276085,
+      0.9582916957378628,
+      0.2549233589105125
+    ],
+    "input_vertex_count": 80394,
+    "input_face_count": 160847,
+    "output_vertex_count": 78456,
+    "output_face_count": 156801,
+    "removed_face_count": 4046,
+    "plane_point_mm": [
+      72.48257853965018,
+      6.822940846299709,
+      34.402918183002264
+    ],
+    "plane_normal": [
+      -0.12919406705276087,
+      0.958291695737863,
+      0.25492335891051254
+    ],
+    "keep_positive_side": true
+  },
+  "runtime_inlet_boundary": {
+    "found": true,
+    "component_vertex_count": 52,
+    "center_mm": [
+      72.53768310970851,
+      7.1229774550897496,
+      34.51135428274426
+    ],
+    "mean_radius_mm": 4.747128468133663,
+    "max_radius_mm": 5.047645232029766,
+    "axis_radial_offset_mm": 0.09962100121867162,
+    "axis_axial_offset_mm": 0.30804630187519916,
+    "plane_residual_mean_mm": 0.3080463018752002,
+    "plane_residual_max_mm": 0.723553879136082,
+    "entry_axis_direction": [
+      -0.1291940670527675,
+      0.9582916957378625,
+      0.25492335891050993
+    ],
+    "component_count": 58,
+    "selection_score": 0.2844487823437914
+  }
+}
