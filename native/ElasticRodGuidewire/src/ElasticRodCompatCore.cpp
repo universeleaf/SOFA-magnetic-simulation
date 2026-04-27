@@ -172,7 +172,10 @@ void ElasticRodCompatCore::configure(
     Real shearBody,
     Real rodLengthMm,
     std::size_t magneticEdgeCount,
-    std::size_t softTipEdgeCount)
+    std::size_t softTipEdgeCount,
+    const std::vector<Real>& edgeEAProfile,
+    const std::vector<Real>& edgeEIProfile,
+    const std::vector<Real>& edgeGJProfile)
 {
     m_rho = rho;
     m_mechanicalCoreRadiusM = mechanicalCoreRadiusMm * static_cast<Real>(1.0e-3);
@@ -184,6 +187,9 @@ void ElasticRodCompatCore::configure(
     m_rodLengthM = rodLengthMm * static_cast<Real>(1.0e-3);
     m_magneticEdgeCount = magneticEdgeCount;
     m_softTipEdgeCount = softTipEdgeCount;
+    m_edgeEAProfile = edgeEAProfile;
+    m_edgeEIProfile = edgeEIProfile;
+    m_edgeGJProfile = edgeGJProfile;
 }
 
 std::vector<ElasticRodCompatCore::Vec3> ElasticRodCompatCore::buildUndeformedCentersM(
@@ -302,6 +308,20 @@ void ElasticRodCompatCore::computeStiffness()
     m_EA.assign(ne, 0.0);
     m_EI.assign(ne, 0.0);
     m_GJ.assign(ne, 0.0);
+    if (
+        m_edgeEAProfile.size() == ne
+        && m_edgeEIProfile.size() == ne
+        && m_edgeGJProfile.size() == ne
+    )
+    {
+        for (std::size_t i = 0; i < ne; ++i)
+        {
+            m_EA[i] = std::max(m_edgeEAProfile[i], static_cast<Real>(0.0));
+            m_EI[i] = std::max(m_edgeEIProfile[i], static_cast<Real>(0.0));
+            m_GJ[i] = std::max(m_edgeGJProfile[i], static_cast<Real>(0.0));
+        }
+        return;
+    }
     const Real area = static_cast<Real>(kPi) * m_mechanicalCoreRadiusM * m_mechanicalCoreRadiusM;
     const Real I = static_cast<Real>(0.25 * kPi) * std::pow(m_mechanicalCoreRadiusM, 4);
     const Real J = static_cast<Real>(0.5 * kPi) * std::pow(m_mechanicalCoreRadiusM, 4);

@@ -51,7 +51,10 @@ public:
         Real shearBody,
         Real rodLengthMm,
         std::size_t magneticEdgeCount,
-        std::size_t softTipEdgeCount = 0u);
+        std::size_t softTipEdgeCount = 0u,
+        const std::vector<Real>& edgeEAProfile = {},
+        const std::vector<Real>& edgeEIProfile = {},
+        const std::vector<Real>& edgeGJProfile = {});
 
     void initialize(const std::vector<Coord>& initialCoords, const std::vector<Vec3>& undeformedNodesMm);
     State computeState(const std::vector<Coord>& coords) const;
@@ -118,6 +121,9 @@ private:
     Real m_rodLengthM {400.0e-3};
     std::size_t m_magneticEdgeCount {5};
     std::size_t m_softTipEdgeCount {0};
+    std::vector<Real> m_edgeEAProfile;
+    std::vector<Real> m_edgeEIProfile;
+    std::vector<Real> m_edgeGJProfile;
 
     std::vector<Vec3> m_initialCentersMm;
     std::vector<Vec3> m_undeformedCentersM;

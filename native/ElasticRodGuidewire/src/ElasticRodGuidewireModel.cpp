@@ -273,6 +273,9 @@ ElasticRodGuidewireModel::ElasticRodGuidewireModel()
     , d_youngBody(initData(&d_youngBody, static_cast<Real>(5.5e10), "youngBody", "Body Young modulus in Pa."))
     , d_shearHead(initData(&d_shearHead, static_cast<Real>(6.766917293233083e9), "shearHead", "Effective distal soft-tip shear modulus in Pa."))
     , d_shearBody(initData(&d_shearBody, static_cast<Real>(2.067669172932331e10), "shearBody", "Body shear modulus in Pa."))
+    , d_edgeEAProfile(initData(&d_edgeEAProfile, "edgeEAProfile", "Optional per-edge axial stiffness EA profile in SI units."))
+    , d_edgeEIProfile(initData(&d_edgeEIProfile, "edgeEIProfile", "Optional per-edge bending stiffness EI profile in SI units."))
+    , d_edgeGJProfile(initData(&d_edgeGJProfile, "edgeGJProfile", "Optional per-edge torsional stiffness GJ profile in SI units."))
     , d_rodLength(initData(&d_rodLength, static_cast<Real>(400.0), "rodLength", "Guidewire length in mm."))
     , d_magneticEdgeCount(initData(&d_magneticEdgeCount, 5u, "magneticEdgeCount", "Number of distal magnetic edges."))
     , d_softTipEdgeCount(initData(&d_softTipEdgeCount, 8u, "softTipEdgeCount", "Number of distal edges that use the softer segmented tip stiffness."))
@@ -725,6 +728,10 @@ void ElasticRodGuidewireModel::configureCoreFromData(const VecCoord& positions)
     for (const Vec3& p : d_undeformedNodes.getValue())
         undeformedNodes.push_back(p);
 
+    std::vector<Real> edgeEAProfile(d_edgeEAProfile.getValue().begin(), d_edgeEAProfile.getValue().end());
+    std::vector<Real> edgeEIProfile(d_edgeEIProfile.getValue().begin(), d_edgeEIProfile.getValue().end());
+    std::vector<Real> edgeGJProfile(d_edgeGJProfile.getValue().begin(), d_edgeGJProfile.getValue().end());
+
     m_core.configure(
         d_rho.getValue(),
         d_mechanicalCoreRadiusMm.getValue(),
@@ -735,7 +742,10 @@ void ElasticRodGuidewireModel::configureCoreFromData(const VecCoord& positions)
         d_shearBody.getValue(),
         d_rodLength.getValue(),
         static_cast<std::size_t>(d_magneticEdgeCount.getValue()),
-        static_cast<std::size_t>(d_softTipEdgeCount.getValue()));
+        static_cast<std::size_t>(d_softTipEdgeCount.getValue()),
+        edgeEAProfile,
+        edgeEIProfile,
+        edgeGJProfile);
     m_core.initialize(initialCoords, undeformedNodes);
     refreshLumenProfile();
 

@@ -186,6 +186,7 @@ from .config import (
     WIRE_TOTAL_LENGTH_MM,
     option_parameter_lines,
     segmented_young,
+    structured_guidewire_section_properties_mm,
 )
 from .controller import BeamGuidewireController, ElasticRodGuidewireController
 from .geometry import _NearestSurface, _build_open_cylinder_shell, _initial_wire_state, _load_centerline, _load_obj_vertices_faces, _lumen_profile
@@ -433,7 +434,8 @@ def _build_beam_backend(guidewire, init_rigid: np.ndarray, edges, centerline: np
     )
     guidewire.addObject('EdgeSetTopologyContainer', name='topo', edges=edges)
 
-    young = segmented_young(len(edges))
+    beam_profiles = _build_structured_edge_profiles(init_rigid[:, :3])
+    young = beam_profiles['beam_young_profile'] or segmented_young(len(edges))
     try:
         guidewire.addObject(
             'BeamInterpolation',
@@ -666,6 +668,40 @@ def _select_elasticrod_entry_push_indices(init_signed_s: np.ndarray, node_count:
     return list(range(min(min_count, int(node_count), signed_s.size)))
 
 
+def _edge_midpoints_from_tip_mm(nodes_mm: np.ndarray) -> np.ndarray:
+    pts = np.asarray(nodes_mm, dtype=float).reshape(-1, 3)
+    if pts.shape[0] < 2:
+        return np.zeros(0, dtype=float)
+
+    edge_lengths_mm = np.linalg.norm(pts[1:, :3] - pts[:-1, :3], axis=1)
+    node_distance_from_tip_mm = np.zeros(pts.shape[0], dtype=float)
+    for idx in range(pts.shape[0] - 2, -1, -1):
+        node_distance_from_tip_mm[idx] = node_distance_from_tip_mm[idx + 1] + float(edge_lengths_mm[idx])
+    return 0.5 * (node_distance_from_tip_mm[:-1] + node_distance_from_tip_mm[1:])
+
+
+def _build_structured_edge_profiles(nodes_mm: np.ndarray) -> dict:
+    edge_midpoints_from_tip_mm = _edge_midpoints_from_tip_mm(nodes_mm)
+    if edge_midpoints_from_tip_mm.size == 0:
+        return {
+            'edge_ea_profile': [],
+            'edge_ei_profile': [],
+            'edge_gj_profile': [],
+            'beam_young_profile': [],
+        }
+
+    sections = [
+        structured_guidewire_section_properties_mm(float(distance_mm))
+        for distance_mm in edge_midpoints_from_tip_mm
+    ]
+    return {
+        'edge_ea_profile': [float(section['axial_ea_si']) for section in sections],
+        'edge_ei_profile': [float(section['bending_ei_si']) for section in sections],
+        'edge_gj_profile': [float(section['torsion_gj_si']) for section in sections],
+        'beam_young_profile': [float(section['beam_effective_young_pa']) for section in sections],
+    }
+
+
 def _build_elasticrod_backend(
     guidewire,
     init_rigid: np.ndarray,
@@ -679,6 +715,10 @@ def _build_elasticrod_backend(
     init_nodes = np.asarray(init_rigid[:, :3], dtype=float)
     vessel_vertices = np.asarray(vessel_vertices, dtype=float)
     vessel_faces = np.asarray(vessel_faces, dtype=int).reshape(-1, 3)
+    structured_profiles = _build_structured_edge_profiles(init_nodes)
+    edge_ea_profile = structured_profiles['edge_ea_profile']
+    edge_ei_profile = structured_profiles['edge_ei_profile']
+    edge_gj_profile = structured_profiles['edge_gj_profile']
     strict_mode = ELASTICROD_STABILIZATION_MODE == 'strict'
     lumen_radii_mm = (
         _lumen_profile(centerline[:, :3], vessel_vertices[:, :3], vessel_faces[:, :3], face_candidate_count=1024)
@@ -689,22 +729,35 @@ def _build_elasticrod_backend(
         ELASTICROD_STRICT_NATIVE_LUMEN_BARRIER
         and lumen_radii_mm.shape[0] == centerline.shape[0]
     )
+    strict_candidate_node_count = (
+        min(int(init_rigid.shape[0]), int(np.asarray(init_signed_s, dtype=float).size))
+        if np.asarray(init_signed_s, dtype=float).size > 0
+        else int(init_rigid.shape[0])
+    )
     strict_native_windows = strict_mode
     disable_native_boundary_driver = bool(
         strict_native_windows and ELASTICROD_STRICT_DISABLE_NATIVE_BOUNDARY_DRIVER
     )
     if strict_native_windows:
-        support_indices = []
-        drive_window_indices = []
-        support_candidate_indices = []
-        drive_candidate_indices = []
         if disable_native_boundary_driver:
+            support_indices = []
+            drive_window_indices = []
+            support_candidate_indices = []
+            drive_candidate_indices = []
             tail_push_indices = list(range(min(
                 max(int(ELASTICROD_STRICT_EXTERNAL_PUSH_MAX_NODE_COUNT), 1),
                 int(init_rigid.shape[0]),
             )))
             push_indices = tail_push_indices.copy()
         else:
+            # The native strict boundary driver advances a short external
+            # corridor by commandedInsertion. Feed it the full material order so
+            # the support/drive windows can migrate proximally instead of
+            # remaining pinned to the initial tail nodes.
+            support_candidate_indices = list(range(strict_candidate_node_count))
+            drive_candidate_indices = support_candidate_indices.copy()
+            support_indices = support_candidate_indices.copy()
+            drive_window_indices = drive_candidate_indices.copy()
             tail_push_indices = []
             push_indices = []
         axial_assist_indices = []
@@ -801,6 +854,9 @@ def _build_elasticrod_backend(
         youngBody=NATIVE_WIRE_BODY_YOUNG_MODULUS_PA,
         shearHead=NATIVE_WIRE_HEAD_SHEAR_MODULUS_PA,
         shearBody=NATIVE_WIRE_BODY_SHEAR_MODULUS_PA,
+        edgeEAProfile=edge_ea_profile,
+        edgeEIProfile=edge_ei_profile,
+        edgeGJProfile=edge_gj_profile,
         rodLength=NATIVE_WIRE_TOTAL_LENGTH_MM,
         magneticEdgeCount=ELASTICROD_MAGNETIC_HEAD_EDGES,
         softTipEdgeCount=NATIVE_WIRE_SOFT_TIP_EDGE_COUNT,
@@ -1251,7 +1307,15 @@ def createScene(root: Sofa.Core.Node):
         (1.0 - DEFAULT_CAMERA_ROUTE_FOCUS_WEIGHT) * scene_base_center
         + DEFAULT_CAMERA_ROUTE_FOCUS_WEIGHT * route_focus_point
     )
-    camera_focus_center = init_rigid[-1, :3] if ENABLE_CAMERA_FOLLOW else default_camera_focus
+    # The native elasticrod backend keeps a long extra-vascular shaft outside
+    # the vessel. If we focus only on the route midpoint, the visible magnetic
+    # tip can start well outside the initial camera frustum and the scene looks
+    # like it contains no guidewire at all.
+    camera_focus_center = (
+        init_rigid[-1, :3]
+        if (ENABLE_CAMERA_FOLLOW or GUIDEWIRE_BACKEND == 'elasticrod')
+        else default_camera_focus
+    )
     camera, camera_follow_offset = _add_camera(
         root,
         camera_focus_center,

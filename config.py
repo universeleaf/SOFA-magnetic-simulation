@@ -249,7 +249,7 @@ ELASTICROD_STRICT_EXTERNAL_SUPPORT_LENGTH_MM = 42.0
 ELASTICROD_STRICT_EXTERNAL_PUSH_FORCE_N = 1.55
 ELASTICROD_STRICT_EXTERNAL_PUSH_FORCE_MAX_N = 2.20
 ELASTICROD_STRICT_EXTERNAL_PUSH_MAX_NODE_COUNT = 5
-ELASTICROD_STRICT_DISABLE_NATIVE_BOUNDARY_DRIVER = True
+ELASTICROD_STRICT_DISABLE_NATIVE_BOUNDARY_DRIVER = False
 ELASTICROD_STRICT_SUPPORT_WINDOW_LENGTH_MM = ELASTICROD_STRICT_EXTERNAL_SUPPORT_LENGTH_MM
 ELASTICROD_STRICT_SUPPORT_RELEASE_MM = 18.0
 ELASTICROD_STRICT_DRIVE_WINDOW_LENGTH_MM = ELASTICROD_STRICT_EXTERNAL_SUPPORT_LENGTH_MM
@@ -419,8 +419,8 @@ ELASTICROD_AXIAL_DRIVE_NODE_COUNT = None
 # 运动优先默认把 axial drive 覆盖到整个 native support block；如果调用方显式指定，
 # 仍然尊重外部覆盖值。
 ELASTICROD_AXIAL_DRIVE_NODE_COUNT = None
-ELASTICROD_MATERIAL_PRESET = 'niti_segmented_soft_tip'
-if ELASTICROD_MATERIAL_PRESET not in {'niti_segmented_soft_tip'}:
+ELASTICROD_MATERIAL_PRESET = 'structured_tapered_niti_core'
+if ELASTICROD_MATERIAL_PRESET not in {'structured_tapered_niti_core'}:
     raise ValueError(f'Unsupported ELASTICROD_MATERIAL_PRESET: {ELASTICROD_MATERIAL_PRESET}')
 
 # C++ 插件参数头里的默认物理量是导丝本体更可信的真值源。
@@ -597,35 +597,156 @@ OPTION_PARAMETERS = OptionParameters(
     magnetic_edge_count=5,
 )
 
-ELASTICROD_CONTACT_OUTER_RADIUS_MM = 0.35
-ELASTICROD_MECHANICAL_CORE_RADIUS_MM = 0.20
-ELASTICROD_MATERIAL_PROFILE = 'niti_segmented_soft_tip'
-if ELASTICROD_MATERIAL_PROFILE not in {'niti_segmented_soft_tip'}:
-    raise ValueError(f'Unsupported ELASTICROD_MATERIAL_PROFILE: {ELASTICROD_MATERIAL_PROFILE}')
-ELASTICROD_BODY_YOUNG_PA = 76.0e9  # Slightly stiffer shaft so proximal push reaches the first bend instead of folding into the distal segment.
-ELASTICROD_BODY_POISSON = 0.33
-ELASTICROD_BODY_DENSITY_KG_M3 = 6500.0
-ELASTICROD_HEAD_EFFECTIVE_YOUNG_PA = 8.00e9  # Keep the distal tip softer than the shaft while preserving a coherent metal-like torsional response.
-ELASTICROD_DISTAL_SOFT_LENGTH_MM = 13.0
-# The distal magnetic section should bend more easily than the shaft, but it
-# must stay torsionally coherent like a metal guidewire tip instead of letting
-# each reduced rod node visibly twist on its own.
-ELASTICROD_HEAD_EFFECTIVE_SHEAR_SCALE = 9.00
-ELASTICROD_HEAD_EFFECTIVE_SHEAR_PA = (
-    ELASTICROD_HEAD_EFFECTIVE_SHEAR_SCALE
-    * ELASTICROD_HEAD_EFFECTIVE_YOUNG_PA
-    / (2.0 * (1.0 + ELASTICROD_BODY_POISSON))
+STRUCTURED_GUIDEWIRE_TOTAL_LENGTH_MM = 400.0
+STRUCTURED_GUIDEWIRE_OUTER_DIAMETER_MM = 1.0
+STRUCTURED_GUIDEWIRE_OUTER_RADIUS_MM = 0.5 * STRUCTURED_GUIDEWIRE_OUTER_DIAMETER_MM
+STRUCTURED_GUIDEWIRE_HEAD_LENGTH_MM = 25.0
+STRUCTURED_GUIDEWIRE_NITI_CORE_START_MM = 4.0
+STRUCTURED_GUIDEWIRE_NITI_CORE_TAPER_END_MM = 200.0
+STRUCTURED_GUIDEWIRE_NITI_CORE_DIAMETER_START_MM = 0.10
+STRUCTURED_GUIDEWIRE_NITI_CORE_DIAMETER_END_MM = 0.48
+STRUCTURED_GUIDEWIRE_HEAD_SHELL_YOUNG_PA = 3.0e7
+STRUCTURED_GUIDEWIRE_HEAD_SHELL_POISSON = 0.49
+STRUCTURED_GUIDEWIRE_BODY_SHELL_YOUNG_PA = 10.0e6
+STRUCTURED_GUIDEWIRE_BODY_SHELL_POISSON = 0.49
+STRUCTURED_GUIDEWIRE_NITI_YOUNG_PA = 30.0e9
+STRUCTURED_GUIDEWIRE_NITI_POISSON = 0.33
+
+
+def _shear_modulus_from_young(young_pa: float, poisson: float) -> float:
+    return float(young_pa) / (2.0 * (1.0 + float(poisson)))
+
+
+STRUCTURED_GUIDEWIRE_HEAD_SHELL_SHEAR_PA = _shear_modulus_from_young(
+    STRUCTURED_GUIDEWIRE_HEAD_SHELL_YOUNG_PA,
+    STRUCTURED_GUIDEWIRE_HEAD_SHELL_POISSON,
 )
-ELASTICROD_BODY_SHEAR_PA = ELASTICROD_BODY_YOUNG_PA / (2.0 * (1.0 + ELASTICROD_BODY_POISSON))
-ELASTICROD_MAGNETIC_CORE_RADIUS_MM = ELASTICROD_MECHANICAL_CORE_RADIUS_MM
+STRUCTURED_GUIDEWIRE_BODY_SHELL_SHEAR_PA = _shear_modulus_from_young(
+    STRUCTURED_GUIDEWIRE_BODY_SHELL_YOUNG_PA,
+    STRUCTURED_GUIDEWIRE_BODY_SHELL_POISSON,
+)
+STRUCTURED_GUIDEWIRE_NITI_SHEAR_PA = _shear_modulus_from_young(
+    STRUCTURED_GUIDEWIRE_NITI_YOUNG_PA,
+    STRUCTURED_GUIDEWIRE_NITI_POISSON,
+)
+
+
+def structured_guidewire_niti_core_diameter_mm(distance_from_tip_mm: float) -> float:
+    x_mm = float(np.clip(distance_from_tip_mm, 0.0, STRUCTURED_GUIDEWIRE_TOTAL_LENGTH_MM))
+    if x_mm < STRUCTURED_GUIDEWIRE_NITI_CORE_START_MM:
+        return 0.0
+    if x_mm <= STRUCTURED_GUIDEWIRE_NITI_CORE_TAPER_END_MM:
+        alpha = (
+            (x_mm - STRUCTURED_GUIDEWIRE_NITI_CORE_START_MM)
+            / max(
+                STRUCTURED_GUIDEWIRE_NITI_CORE_TAPER_END_MM - STRUCTURED_GUIDEWIRE_NITI_CORE_START_MM,
+                1.0e-9,
+            )
+        )
+        return (
+            STRUCTURED_GUIDEWIRE_NITI_CORE_DIAMETER_START_MM
+            + alpha * (
+                STRUCTURED_GUIDEWIRE_NITI_CORE_DIAMETER_END_MM
+                - STRUCTURED_GUIDEWIRE_NITI_CORE_DIAMETER_START_MM
+            )
+        )
+    return STRUCTURED_GUIDEWIRE_NITI_CORE_DIAMETER_END_MM
+
+
+def structured_guidewire_shell_moduli_pa(distance_from_tip_mm: float) -> tuple[float, float]:
+    x_mm = float(np.clip(distance_from_tip_mm, 0.0, STRUCTURED_GUIDEWIRE_TOTAL_LENGTH_MM))
+    if x_mm < STRUCTURED_GUIDEWIRE_HEAD_LENGTH_MM:
+        return (
+            STRUCTURED_GUIDEWIRE_HEAD_SHELL_YOUNG_PA,
+            STRUCTURED_GUIDEWIRE_HEAD_SHELL_SHEAR_PA,
+        )
+    return (
+        STRUCTURED_GUIDEWIRE_BODY_SHELL_YOUNG_PA,
+        STRUCTURED_GUIDEWIRE_BODY_SHELL_SHEAR_PA,
+    )
+
+
+def structured_guidewire_section_properties_mm(distance_from_tip_mm: float) -> dict[str, float]:
+    x_mm = float(np.clip(distance_from_tip_mm, 0.0, STRUCTURED_GUIDEWIRE_TOTAL_LENGTH_MM))
+    outer_radius_mm = float(STRUCTURED_GUIDEWIRE_OUTER_RADIUS_MM)
+    core_diameter_mm = float(structured_guidewire_niti_core_diameter_mm(x_mm))
+    core_radius_mm = min(0.5 * core_diameter_mm, outer_radius_mm)
+    shell_young_pa, shell_shear_pa = structured_guidewire_shell_moduli_pa(x_mm)
+
+    outer_radius_m = 1.0e-3 * outer_radius_mm
+    core_radius_m = 1.0e-3 * core_radius_mm
+
+    outer_area_m2 = math.pi * outer_radius_m * outer_radius_m
+    core_area_m2 = math.pi * core_radius_m * core_radius_m
+    shell_area_m2 = max(outer_area_m2 - core_area_m2, 0.0)
+
+    outer_i_m4 = 0.25 * math.pi * outer_radius_m**4
+    core_i_m4 = 0.25 * math.pi * core_radius_m**4
+    shell_i_m4 = max(outer_i_m4 - core_i_m4, 0.0)
+
+    outer_j_m4 = 0.50 * math.pi * outer_radius_m**4
+    core_j_m4 = 0.50 * math.pi * core_radius_m**4
+    shell_j_m4 = max(outer_j_m4 - core_j_m4, 0.0)
+
+    axial_ea_si = (
+        STRUCTURED_GUIDEWIRE_NITI_YOUNG_PA * core_area_m2
+        + shell_young_pa * shell_area_m2
+    )
+    bending_ei_si = (
+        STRUCTURED_GUIDEWIRE_NITI_YOUNG_PA * core_i_m4
+        + shell_young_pa * shell_i_m4
+    )
+    torsion_gj_si = (
+        STRUCTURED_GUIDEWIRE_NITI_SHEAR_PA * core_j_m4
+        + shell_shear_pa * shell_j_m4
+    )
+    beam_effective_young_pa = bending_ei_si / max(outer_i_m4, 1.0e-18)
+
+    return {
+        'distance_from_tip_mm': x_mm,
+        'outer_radius_mm': outer_radius_mm,
+        'core_diameter_mm': core_diameter_mm,
+        'core_radius_mm': core_radius_mm,
+        'shell_young_pa': float(shell_young_pa),
+        'shell_shear_pa': float(shell_shear_pa),
+        'axial_ea_si': float(axial_ea_si),
+        'bending_ei_si': float(bending_ei_si),
+        'torsion_gj_si': float(torsion_gj_si),
+        'beam_effective_young_pa': float(beam_effective_young_pa),
+    }
+
+
+_STRUCTURED_GUIDEWIRE_HEAD_SECTION = structured_guidewire_section_properties_mm(
+    0.5 * STRUCTURED_GUIDEWIRE_NITI_CORE_START_MM
+)
+_STRUCTURED_GUIDEWIRE_BODY_SECTION = structured_guidewire_section_properties_mm(
+    0.5 * (
+        STRUCTURED_GUIDEWIRE_NITI_CORE_TAPER_END_MM
+        + STRUCTURED_GUIDEWIRE_TOTAL_LENGTH_MM
+    )
+)
+
+ELASTICROD_CONTACT_OUTER_RADIUS_MM = STRUCTURED_GUIDEWIRE_OUTER_RADIUS_MM
+ELASTICROD_MECHANICAL_CORE_RADIUS_MM = 0.5 * STRUCTURED_GUIDEWIRE_NITI_CORE_DIAMETER_END_MM
+ELASTICROD_MATERIAL_PROFILE = 'structured_tapered_niti_core'
+if ELASTICROD_MATERIAL_PROFILE not in {'structured_tapered_niti_core'}:
+    raise ValueError(f'Unsupported ELASTICROD_MATERIAL_PROFILE: {ELASTICROD_MATERIAL_PROFILE}')
+ELASTICROD_BODY_YOUNG_PA = STRUCTURED_GUIDEWIRE_NITI_YOUNG_PA
+ELASTICROD_BODY_POISSON = STRUCTURED_GUIDEWIRE_NITI_POISSON
+ELASTICROD_BODY_DENSITY_KG_M3 = 6500.0
+ELASTICROD_HEAD_EFFECTIVE_YOUNG_PA = STRUCTURED_GUIDEWIRE_HEAD_SHELL_YOUNG_PA
+ELASTICROD_DISTAL_SOFT_LENGTH_MM = STRUCTURED_GUIDEWIRE_HEAD_LENGTH_MM
+ELASTICROD_HEAD_EFFECTIVE_SHEAR_PA = STRUCTURED_GUIDEWIRE_HEAD_SHELL_SHEAR_PA
+ELASTICROD_BODY_SHEAR_PA = STRUCTURED_GUIDEWIRE_NITI_SHEAR_PA
+ELASTICROD_MAGNETIC_CORE_RADIUS_MM = STRUCTURED_GUIDEWIRE_OUTER_RADIUS_MM
 
 
 DT = OPTION_PARAMETERS.dt_s
 ROOT_GRAVITY = OPTION_PARAMETERS.gravity_mm_s2
 # 用户明确希望把导丝半径再放大一点；这里在 option.txt 与插件默认值之上取一个温和的放大量。
 # 更大的半径会同时提升接触厚度和截面惯性矩，能显著抑制入口受压后的欧拉屈曲。
-WIRE_RADIUS_MM = max(OPTION_PARAMETERS.rod_radius_mm, PLUGIN_DEFAULT_ROD_RADIUS_MM, 0.32)
-WIRE_TOTAL_LENGTH_MM = OPTION_PARAMETERS.rod_length_mm
+WIRE_RADIUS_MM = STRUCTURED_GUIDEWIRE_OUTER_RADIUS_MM
+WIRE_TOTAL_LENGTH_MM = max(OPTION_PARAMETERS.rod_length_mm, STRUCTURED_GUIDEWIRE_TOTAL_LENGTH_MM)
 WIRE_NODE_COUNT = OPTION_PARAMETERS.num_vertices
 WIRE_N_SEGMENTS = OPTION_PARAMETERS.num_vertices - 1
 BEAM_RUNTIME_IS_RECORDING = BEAM_RUNTIME_PROFILE == 'recording_10min'
@@ -660,15 +781,15 @@ ELASTICROD_ACTIVE_NODE_COUNT = (
     if ELASTICROD_RUNTIME_GUI_NODE_BUDGET
     else (ELASTICROD_REALTIME_NODE_COUNT if ELASTICROD_RUNTIME_IS_REALTIME else WIRE_NODE_COUNT)
 )
-ELASTICROD_WIRE_TOTAL_LENGTH_MM = 400.0
+ELASTICROD_WIRE_TOTAL_LENGTH_MM = STRUCTURED_GUIDEWIRE_TOTAL_LENGTH_MM
 WIRE_MASS_DENSITY = PLUGIN_DEFAULT_RHO
 # 用插件头文件对应的 E/G 反推，可得到更合理的泊松比约 0.33；
 # 比 option.txt 里的 0.5 更接近当前高刚度金属导丝分段参数。
 WIRE_POISSON = 0.33
-WIRE_HEAD_YOUNG_MODULUS_PA = PLUGIN_DEFAULT_YOUNG_HEAD_PA
-WIRE_BODY_YOUNG_MODULUS_PA = PLUGIN_DEFAULT_YOUNG_BODY_PA
-WIRE_HEAD_SHEAR_MODULUS_PA = PLUGIN_DEFAULT_SHEAR_HEAD_PA
-WIRE_BODY_SHEAR_MODULUS_PA = PLUGIN_DEFAULT_SHEAR_BODY_PA
+WIRE_HEAD_YOUNG_MODULUS_PA = float(_STRUCTURED_GUIDEWIRE_HEAD_SECTION['beam_effective_young_pa'])
+WIRE_BODY_YOUNG_MODULUS_PA = float(_STRUCTURED_GUIDEWIRE_BODY_SECTION['beam_effective_young_pa'])
+WIRE_HEAD_SHEAR_MODULUS_PA = _shear_modulus_from_young(WIRE_HEAD_YOUNG_MODULUS_PA, WIRE_POISSON)
+WIRE_BODY_SHEAR_MODULUS_PA = _shear_modulus_from_young(WIRE_BODY_YOUNG_MODULUS_PA, WIRE_POISSON)
 NATIVE_WIRE_RADIUS_MM = float(ELASTICROD_CONTACT_OUTER_RADIUS_MM)
 NATIVE_WIRE_MECHANICAL_CORE_RADIUS_MM = float(ELASTICROD_MECHANICAL_CORE_RADIUS_MM)
 NATIVE_WIRE_TOTAL_LENGTH_MM = ELASTICROD_WIRE_TOTAL_LENGTH_MM
@@ -948,7 +1069,16 @@ PUSH_FORCE_CALIBRATION_LOCK_NEG_SPEED_MM_S = -0.25
 PUSH_FORCE_CALIBRATION_LOCK_COMPRESSION_MM = 1.0
 TIP_SPEED_FILTER_ALPHA = 0.25
 
-MAGNETIC_HEAD_EDGES = OPTION_PARAMETERS.magnetic_edge_count
+MAGNETIC_HEAD_EDGES = max(
+    1,
+    min(
+        WIRE_NODE_COUNT - 1,
+        int(math.ceil(
+            STRUCTURED_GUIDEWIRE_HEAD_LENGTH_MM
+            / max(WIRE_TOTAL_LENGTH_MM / max(WIRE_NODE_COUNT - 1, 1), 1.0e-6)
+        )),
+    ),
+)
 DISTAL_VISUAL_NODE_COUNT = MAGNETIC_HEAD_EDGES + 1
 DISTAL_FORCE_NODE_COUNT = MAGNETIC_HEAD_EDGES + 1
 # Keep the native magnetic tip length tied to the original DER physical tip
@@ -958,7 +1088,7 @@ DISTAL_FORCE_NODE_COUNT = MAGNETIC_HEAD_EDGES + 1
 # head shorter than the whole rod, but let it cover most of the soft distal
 # segment so the steering torque and lateral pull act over a real composite head
 # instead of only the last ~16 mm.
-ELASTICROD_MAGNETIC_HEAD_LENGTH_MM = 24.0
+ELASTICROD_MAGNETIC_HEAD_LENGTH_MM = STRUCTURED_GUIDEWIRE_HEAD_LENGTH_MM
 ELASTICROD_MAGNETIC_HEAD_EDGES = max(
     1,
     min(

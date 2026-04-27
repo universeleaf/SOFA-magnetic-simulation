@@ -70,6 +70,9 @@ public:
     sofa::core::objectmodel::Data<Real> d_youngBody;
     sofa::core::objectmodel::Data<Real> d_shearHead;
     sofa::core::objectmodel::Data<Real> d_shearBody;
+    sofa::core::objectmodel::Data<VecReal> d_edgeEAProfile;
+    sofa::core::objectmodel::Data<VecReal> d_edgeEIProfile;
+    sofa::core::objectmodel::Data<VecReal> d_edgeGJProfile;
     sofa::core::objectmodel::Data<Real> d_rodLength;
     sofa::core::objectmodel::Data<unsigned int> d_magneticEdgeCount;
     sofa::core::objectmodel::Data<unsigned int> d_softTipEdgeCount;
