@@ -181,6 +181,7 @@ from .config import (
     VESSEL_COLLISION_DEBUG_RGBA,
     VESSEL_VISUAL_RGBA,
     VESSEL_OBJ,
+    VESSEL_VISUAL_OBJ,
     WIRE_BODY_YOUNG_MODULUS_PA,
     WIRE_MASS_DENSITY,
     WIRE_POISSON,
@@ -1125,7 +1126,8 @@ def createScene(root: Sofa.Core.Node):
     vessel.addObject('MechanicalObject', name='dofs', template='Vec3d', position=vessel_vertices.tolist(), showObject=False)
     vessel.addObject('TriangleCollisionModel', moving=0, simulated=0, bothSide=1, color=' '.join(str(v) for v in VESSEL_COLLISION_DEBUG_RGBA))
     vessel_vis = vessel.addChild('Visual')
-    vessel_vis.addObject('OglModel', name='vis', src='@../loader', color=' '.join(str(v) for v in VESSEL_VISUAL_RGBA))
+    vessel_vis.addObject('MeshOBJLoader', name='loader', filename=str(VESSEL_VISUAL_OBJ))
+    vessel_vis.addObject('OglModel', name='vis', src='@loader', color=' '.join(str(v) for v in VESSEL_VISUAL_RGBA))
 
     centerline_node = root.addChild('Centerline')
     centerline_node.addObject('MechanicalObject', name='dofs', template='Vec3d', position=centerline.tolist(), showObject=False)
@@ -1422,6 +1424,7 @@ def createScene(root: Sofa.Core.Node):
     print(f'  plugin: {loaded_plugin}')
     print(f'  option file: {OPTION_TXT}')
     print(f'  vessel surface: {VESSEL_OBJ}')
+    print(f'  vessel visual mesh: {VESSEL_VISUAL_OBJ}')
     print(f'  scene background: {SCENE_BACKGROUND_RGBA}')
     print(f'  scene autoplay default: {SCENE_AUTOPLAY}')
     print(f'  route name: {SELECTED_ROUTE_NAME}')

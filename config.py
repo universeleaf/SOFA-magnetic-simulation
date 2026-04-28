@@ -21,6 +21,11 @@ EXTRACTED_ROUTE_DIR = EXTRACTED_CENTERLINE_DIR / 'routes'
 ROUTE_CATALOG_FILE = EXTRACTED_CENTERLINE_DIR / 'route_catalog.json'
 OPTION_TXT = ASSETS_DIR / 'option.txt'
 VESSEL_OBJ = ASSETS_DIR / 'vessel.obj'
+VESSEL_VISUAL_OBJ = (
+    ASSETS_DIR / 'vessel_collision_proxy.obj'
+    if (ASSETS_DIR / 'vessel_collision_proxy.obj').exists()
+    else VESSEL_OBJ
+)
 
 # 路线切换入口：
 # 以后做 PPT 或对比实验时，只需要改 `SELECTED_ROUTE_NAME` 这一处。
