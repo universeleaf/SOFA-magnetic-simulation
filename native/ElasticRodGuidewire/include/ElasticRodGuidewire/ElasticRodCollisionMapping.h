@@ -4,9 +4,12 @@
 #include <ElasticRodGuidewire/config.h>
 
 #include <sofa/core/Mapping.h>
+#include <sofa/core/objectmodel/Data.h>
 #include <sofa/defaulttype/VecTypes.h>
 #include <sofa/linearalgebra/EigenSparseMatrix.h>
 #include <sofa/type/vector.h>
+
+#include <vector>
 
 namespace elastic_rod_guidewire
 {
@@ -27,6 +30,7 @@ public:
     using OutVecDeriv = typename Out::VecDeriv;
     using OutDeriv = typename Out::Deriv;
     using OutMatrixDeriv = typename Out::MatrixDeriv;
+    using VecUInt = sofa::type::vector<unsigned int>;
     using InDataVecCoord = sofa::core::objectmodel::Data<InVecCoord>;
     using InDataVecDeriv = sofa::core::objectmodel::Data<InVecDeriv>;
     using InDataMatrixDeriv = sofa::core::objectmodel::Data<InMatrixDeriv>;
@@ -44,6 +48,8 @@ public:
     bool sameTopology() const override { return true; }
     bool isLinear() const override { return true; }
 
+    sofa::core::objectmodel::Data<VecUInt> d_selectedIndices;
+
     void apply(const sofa::core::MechanicalParams* mparams, OutDataVecCoord& out, const InDataVecCoord& in) override;
     void applyJ(const sofa::core::MechanicalParams* mparams, OutDataVecDeriv& out, const InDataVecDeriv& in) override;
     void applyJT(const sofa::core::MechanicalParams* mparams, InDataVecDeriv& out, const OutDataVecDeriv& in) override;
@@ -56,8 +62,11 @@ private:
     static constexpr Real kMToMm = static_cast<Real>(1.0e3);
     static constexpr Real kSceneForceToNewton = static_cast<Real>(1.0e-3);
 
+    void refreshSelectedIndices(std::size_t parentNodeCount);
+
     sofa::linearalgebra::EigenSparseMatrix<In, Out> m_jacobian;
     sofa::type::vector<sofa::linearalgebra::BaseMatrix*> m_jacobians;
+    std::vector<std::size_t> m_selectedIndices;
 };
 
 } // namespace elastic_rod_guidewire

@@ -122,12 +122,7 @@ def _load_centerline() -> Tuple[np.ndarray, Path]:
     return resampled, path
 
 
-def _closest_point_on_triangle(point: np.ndarray, a: np.ndarray, b: np.ndarray, c: np.ndarray) -> np.ndarray:
-    p = np.asarray(point, dtype=float).reshape(3)
-    a = np.asarray(a, dtype=float).reshape(3)
-    b = np.asarray(b, dtype=float).reshape(3)
-    c = np.asarray(c, dtype=float).reshape(3)
-
+def _closest_point_on_triangle_fast(p: np.ndarray, a: np.ndarray, b: np.ndarray, c: np.ndarray) -> np.ndarray:
     ab = b - a
     ac = c - a
     ap = p - a
@@ -171,6 +166,15 @@ def _closest_point_on_triangle(point: np.ndarray, a: np.ndarray, b: np.ndarray, 
     return a + ab * v + ac * w
 
 
+def _closest_point_on_triangle(point: np.ndarray, a: np.ndarray, b: np.ndarray, c: np.ndarray) -> np.ndarray:
+    return _closest_point_on_triangle_fast(
+        np.asarray(point, dtype=float).reshape(3),
+        np.asarray(a, dtype=float).reshape(3),
+        np.asarray(b, dtype=float).reshape(3),
+        np.asarray(c, dtype=float).reshape(3),
+    )
+
+
 class _NearestSurface:
     def __init__(self, vertices: np.ndarray, faces: np.ndarray | None = None, face_candidate_count: int = 96):
         self.vertices = np.asarray(vertices, dtype=float)
@@ -179,6 +183,7 @@ class _NearestSurface:
         self.vertex_candidate_count = int(min(max(self.face_candidate_count // 2, 24), 128))
         self.face_centroids = np.zeros((0, 3), dtype=float)
         self.face_vertices = np.zeros((0, 3, 3), dtype=float)
+        self.face_normals = np.zeros((0, 3), dtype=float)
         self.vertex_face_ids: list[np.ndarray] = []
         if self.faces.shape[0] > 0 and self.vertices.shape[0] > 0:
             valid = np.all((self.faces >= 0) & (self.faces < self.vertices.shape[0]), axis=1)
@@ -186,6 +191,18 @@ class _NearestSurface:
             if self.faces.shape[0] > 0:
                 self.face_vertices = self.vertices[self.faces]
                 self.face_centroids = np.mean(self.face_vertices, axis=1)
+                raw_normals = np.cross(
+                    self.face_vertices[:, 1] - self.face_vertices[:, 0],
+                    self.face_vertices[:, 2] - self.face_vertices[:, 0],
+                )
+                self.face_normals = np.zeros_like(raw_normals)
+                normal_norms = np.linalg.norm(raw_normals, axis=1)
+                valid_normals = normal_norms > 1.0e-12
+                if np.any(valid_normals):
+                    self.face_normals[valid_normals] = (
+                        raw_normals[valid_normals]
+                        / normal_norms[valid_normals].reshape(-1, 1)
+                    )
                 adjacency: list[list[int]] = [[] for _ in range(self.vertices.shape[0])]
                 for face_id, tri in enumerate(self.faces.tolist()):
                     adjacency[int(tri[0])].append(face_id)
@@ -219,18 +236,17 @@ class _NearestSurface:
             best_distance = float('inf')
             best_point = self.face_vertices[int(candidate_ids[0]), 0].copy()
             best_normal = np.array([0.0, 0.0, 1.0], dtype=float)
-            for face_id in candidate_ids.tolist():
+            for face_id in candidate_ids:
                 tri = self.face_vertices[face_id]
-                q = _closest_point_on_triangle(p, tri[0], tri[1], tri[2])
+                q = _closest_point_on_triangle_fast(p, tri[0], tri[1], tri[2])
                 delta = p - q
                 dist = float(np.linalg.norm(delta))
                 if dist < best_distance:
                     best_distance = dist
                     best_point = q
-                    normal = np.cross(tri[1] - tri[0], tri[2] - tri[0])
-                    normal_norm = float(np.linalg.norm(normal))
-                    if normal_norm > 1.0e-12:
-                        best_normal = normal / normal_norm
+                    normal = self.face_normals[face_id]
+                    if float(np.dot(normal, normal)) > 1.0e-24:
+                        best_normal = normal
                     elif dist > 1.0e-12:
                         best_normal = delta / dist
             return best_distance, best_point, best_normal

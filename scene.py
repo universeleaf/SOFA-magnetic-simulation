@@ -58,8 +58,10 @@ from .config import (
     ELASTICROD_ENABLE_THRUST_LIMIT,
     ELASTICROD_ENABLE_VIRTUAL_SHEATH,
     ELASTICROD_USE_KINEMATIC_SHEATH_DRIVER,
+    ELASTICROD_VESSEL_QUERY_FACE_CANDIDATE_COUNT,
     ELASTICROD_ENABLE_FIELD_GRADIENT,
     ELASTICROD_CONTACT_ALARM_DISTANCE_MM,
+    ELASTICROD_COLLISION_DECIMATION_STRIDE,
     ELASTICROD_CONTACT_DISTANCE_MM,
     ELASTICROD_CONTACT_MANAGER_RESPONSE_PARAMS,
     ELASTICROD_CONTACT_OUTER_RADIUS_MM,
@@ -514,15 +516,27 @@ def _add_elasticrod_collision(
     self_collision: bool,
     wire_radius_mm: float,
     contact_stiffness: float,
+    sample_indices: list[int] | None = None,
 ):
+    parent_points = np.asarray(points, dtype=float)
+    parent_count = int(parent_points.shape[0])
+    collision_indices = [
+        int(i) for i in (sample_indices or list(range(parent_count)))
+        if 0 <= int(i) < parent_count
+    ]
+    if len(collision_indices) < 2:
+        collision_indices = list(range(parent_count))
+    collision_points = parent_points[collision_indices, :3] if parent_count > 0 else parent_points
+    collision_edges = [[i, i + 1] for i in range(max(0, len(collision_indices) - 1))]
+
     coll = physics_node.addChild('CollisionNode')
-    coll.addObject('EdgeSetTopologyContainer', name='topo', edges=[list(map(int, e[:2])) for e in edges])
+    coll.addObject('EdgeSetTopologyContainer', name='topo', edges=collision_edges)
     coll.addObject(
         'MechanicalObject',
         name='dofs',
         template='Vec3d',
-        position=np.asarray(points, dtype=float).tolist(),
-        rest_position=np.asarray(points, dtype=float).tolist(),
+        position=collision_points.tolist(),
+        rest_position=collision_points.tolist(),
         showObject=False,
     )
     coll.addObject(
@@ -530,6 +544,7 @@ def _add_elasticrod_collision(
         name='collisionMapping',
         input='@../rodState',
         output='@dofs',
+        selectedIndices=collision_indices,
     )
     coll.addObject(
         'LineCollisionModel',
@@ -548,8 +563,8 @@ def _add_elasticrod_collision(
         contactStiffness=float(contact_stiffness),
     )
     print(
-        f'[INFO] Native reduced collision enabled: nodes={int(np.asarray(points).shape[0])}, '
-        f'edges={len(list(edges))}, mapping=ElasticRodCollisionMapping(SI Vec6d->scene Vec3d), '
+        f'[INFO] Native reduced collision enabled: nodes={len(collision_indices)}/{parent_count}, '
+        f'edges={len(collision_edges)}, mapping=ElasticRodCollisionMapping(SI Vec6d->scene Vec3d), '
         f'selfCollision={1 if self_collision else 0}, radius={float(wire_radius_mm):.3f} mm, '
         f'contactStiffness={float(contact_stiffness):.1f}'
     )
@@ -1050,7 +1065,7 @@ def createScene(root: Sofa.Core.Node):
     scene_dt = BEAM_ACTIVE_DT_S if GUIDEWIRE_BACKEND == 'beam' else ELASTICROD_ACTIVE_DT_S
     root.dt = scene_dt
     root.gravity = ROOT_GRAVITY.tolist()
-    root.addObject('VisualStyle', displayFlags='showVisual showVisualModels showBehaviorModels hideCollisionModels')
+    root.addObject('VisualStyle', displayFlags='showVisual showVisualModels hideBehaviorModels hideCollisionModels')
     try:
         root.addObject('BackgroundSetting', color=SCENE_BACKGROUND_RGBA)
     except Exception:
@@ -1100,7 +1115,7 @@ def createScene(root: Sofa.Core.Node):
     controller_vessel_query_count = (
         int(BEAM_VESSEL_QUERY_FACE_CANDIDATE_COUNT)
         if GUIDEWIRE_BACKEND == 'beam'
-        else 1024
+        else int(ELASTICROD_VESSEL_QUERY_FACE_CANDIDATE_COUNT)
     )
     vessel_query = _NearestSurface(vessel_vertices, vessel_faces, face_candidate_count=controller_vessel_query_count)
 
@@ -1219,6 +1234,9 @@ def createScene(root: Sofa.Core.Node):
             contact_stiffness=GUIDEWIRE_CONTACT_STIFFNESS,
         )
     else:
+        collision_sample_indices = list(range(0, int(init_rigid.shape[0]), max(int(ELASTICROD_COLLISION_DECIMATION_STRIDE), 1)))
+        if int(init_rigid.shape[0]) > 0 and (not collision_sample_indices or collision_sample_indices[-1] != int(init_rigid.shape[0]) - 1):
+            collision_sample_indices.append(int(init_rigid.shape[0]) - 1)
         collision_node = _add_elasticrod_collision(
             guidewire.getChild('Physics'),
             init_rigid[:, :3],
@@ -1226,6 +1244,7 @@ def createScene(root: Sofa.Core.Node):
             self_collision=ELASTICROD_ENABLE_SELF_COLLISION,
             wire_radius_mm=NATIVE_WIRE_RADIUS_MM,
             contact_stiffness=ELASTICROD_GUIDEWIRE_CONTACT_STIFFNESS,
+            sample_indices=collision_sample_indices,
         )
         if not ELASTICROD_ENABLE_VIRTUAL_SHEATH:
             target_mech = None

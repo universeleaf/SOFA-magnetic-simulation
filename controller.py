@@ -363,8 +363,34 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         self.native_diagnostic_realtime = self.is_native_backend and ELASTICROD_DIAGNOSTIC_PROFILE == 'realtime'
         self.magnetic_force_field = magnetic_force_field
         self.centerline = np.asarray(centerline_points or [], dtype=float)
-        self.centerline_cum = _cumlen(self.centerline[:, :3])
+        self._centerline_points = np.asarray(self.centerline[:, :3], dtype=float)
+        self.centerline_cum = _cumlen(self._centerline_points)
         self.path_len = float(self.centerline_cum[-1]) if self.centerline_cum.size else 0.0
+        self._centerline_seg_start = (
+            np.asarray(self._centerline_points[:-1], dtype=float)
+            if self._centerline_points.shape[0] >= 2 else np.zeros((0, 3), dtype=float)
+        )
+        self._centerline_seg_vec = (
+            np.diff(self._centerline_points, axis=0)
+            if self._centerline_points.shape[0] >= 2 else np.zeros((0, 3), dtype=float)
+        )
+        self._centerline_seg_count = int(self._centerline_seg_vec.shape[0])
+        self._centerline_seg_ds = (
+            np.diff(self.centerline_cum)
+            if self.centerline_cum.size >= 2 else np.zeros(0, dtype=float)
+        )
+        self._centerline_seg_len2 = (
+            np.einsum('ij,ij->i', self._centerline_seg_vec, self._centerline_seg_vec)
+            if self._centerline_seg_count > 0 else np.zeros(0, dtype=float)
+        )
+        self._centerline_seg_len = np.sqrt(self._centerline_seg_len2)
+        self._centerline_seg_dir = np.zeros_like(self._centerline_seg_vec)
+        if self._centerline_seg_count > 0:
+            valid_seg = self._centerline_seg_len > 1.0e-12
+            self._centerline_seg_dir[valid_seg] = (
+                self._centerline_seg_vec[valid_seg]
+                / self._centerline_seg_len[valid_seg].reshape(-1, 1)
+            )
         self.insertion_direction = _normalize(np.asarray(insertion_direction, dtype=float))
         if np.linalg.norm(self.insertion_direction) < 1e-12:
             self.insertion_direction = DEFAULT_INSERTION_DIR.copy()
@@ -1500,23 +1526,58 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             return 0.0
         return float(1.0 - (nominal_s - VIRTUAL_SHEATH_RELEASE_S_MM) / blend)
 
+    def _centerline_segment_param(self, path_s: float) -> Tuple[int, float, float]:
+        if self._centerline_seg_count <= 0:
+            return -1, 0.0, float(np.clip(path_s, 0.0, self.path_len))
+        clamped_s = float(np.clip(path_s, 0.0, self.path_len))
+        seg = int(np.clip(
+            np.searchsorted(self.centerline_cum, clamped_s, side='right') - 1,
+            0,
+            self._centerline_seg_count - 1,
+        ))
+        ds = float(self._centerline_seg_ds[seg])
+        if ds < 1.0e-12:
+            return seg, 0.0, clamped_s
+        alpha = float(np.clip((clamped_s - self.centerline_cum[seg]) / ds, 0.0, 1.0))
+        return seg, alpha, clamped_s
+
+    def _centerline_point_at_s(self, path_s: float) -> np.ndarray:
+        if self._centerline_points.shape[0] == 0:
+            return np.zeros(3, dtype=float)
+        seg, alpha, _ = self._centerline_segment_param(path_s)
+        if seg < 0:
+            return self._centerline_points[0].copy()
+        return self._centerline_seg_start[seg] + alpha * self._centerline_seg_vec[seg]
+
+    def _centerline_radius_at_s(self, path_s: float) -> float:
+        clamped_s = float(np.clip(path_s, 0.0, self.path_len))
+        if self.use_fast_lumen:
+            return float(np.interp(clamped_s, self.centerline_cum, self.fast_lumen_profile_mm))
+        return float(self.entry_radius_mm)
+
     def _project_to_centerline(self, point: np.ndarray) -> Tuple[np.ndarray, float]:
         p = np.asarray(point, dtype=float).reshape(3)
-        best_q = self.centerline[0, :3].copy()
-        best_s = 0.0
-        best_d2 = float('inf')
-        for i in range(self.centerline.shape[0] - 1):
-            a = self.centerline[i, :3]
-            b = self.centerline[i + 1, :3]
-            ab = b - a
-            ab2 = float(np.dot(ab, ab))
-            u = 0.0 if ab2 < 1e-12 else float(np.clip(np.dot(p - a, ab) / ab2, 0.0, 1.0))
-            q = a + u * ab
-            d2 = float(np.dot(p - q, p - q))
-            if d2 < best_d2:
-                best_q = q
-                best_s = float(self.centerline_cum[i] + u * float(self.centerline_cum[i + 1] - self.centerline_cum[i]))
-                best_d2 = d2
+        if self._centerline_points.shape[0] == 0:
+            return p.copy(), 0.0
+        if self._centerline_seg_count <= 0:
+            return self._centerline_points[0].copy(), 0.0
+
+        rel = p.reshape(1, 3) - self._centerline_seg_start
+        numer = np.einsum('ij,ij->i', rel, self._centerline_seg_vec)
+        u = np.zeros(self._centerline_seg_count, dtype=float)
+        np.divide(
+            numer,
+            self._centerline_seg_len2,
+            out=u,
+            where=self._centerline_seg_len2 > 1.0e-12,
+        )
+        np.clip(u, 0.0, 1.0, out=u)
+        rel2 = np.einsum('ij,ij->i', rel, rel)
+        d2 = rel2 - 2.0 * u * numer + (u * u) * self._centerline_seg_len2
+        best_idx = int(np.argmin(d2))
+        best_u = float(u[best_idx])
+        best_q = self._centerline_seg_start[best_idx] + best_u * self._centerline_seg_vec[best_idx]
+        best_s = float(self.centerline_cum[best_idx] + best_u * self._centerline_seg_ds[best_idx])
         return best_q, best_s
 
     def _forward_centerline_target(
@@ -1537,43 +1598,42 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             forward_dir_vec = self.insertion_direction.copy()
 
         min_forward = max(float(min_forward_mm) if min_forward_mm is not None else 0.0, max(0.15 * self.rest_spacing_mm, 0.25))
-        best_any = (proj_point.copy(), float(proj_s), float(np.dot(proj_point - p, proj_point - p)))
-        best_forward: tuple[np.ndarray, float, float, float] | None = None
-
-        for i in range(max(self.centerline.shape[0] - 1, 0)):
-            a = self.centerline[i, :3]
-            b = self.centerline[i + 1, :3]
-            ab = b - a
-            ab2 = float(np.dot(ab, ab))
-            u = 0.0 if ab2 < 1.0e-12 else float(np.clip(np.dot(p - a, ab) / ab2, 0.0, 1.0))
-            q = a + u * ab
-            q_s = float(self.centerline_cum[i] + u * float(self.centerline_cum[i + 1] - self.centerline_cum[i]))
-            delta = q - p
-            d2 = float(np.dot(delta, delta))
-            forward_mm = float(np.dot(delta, forward_dir_vec))
-            if d2 < best_any[2]:
-                best_any = (q.copy(), q_s, d2)
-            if q_s + 1.0e-9 < proj_s:
-                continue
-            if forward_mm + 1.0e-9 < min_forward:
-                continue
-            if best_forward is None or d2 < best_forward[2] - 1.0e-9 or (
-                abs(d2 - best_forward[2]) <= 1.0e-9 and forward_mm < best_forward[3]
-            ):
-                best_forward = (q.copy(), q_s, d2, forward_mm)
-
-        if best_forward is not None:
-            return best_forward[0], best_forward[1]
+        if self._centerline_seg_count > 0:
+            rel = p.reshape(1, 3) - self._centerline_seg_start
+            numer = np.einsum('ij,ij->i', rel, self._centerline_seg_vec)
+            u = np.zeros(self._centerline_seg_count, dtype=float)
+            np.divide(
+                numer,
+                self._centerline_seg_len2,
+                out=u,
+                where=self._centerline_seg_len2 > 1.0e-12,
+            )
+            np.clip(u, 0.0, 1.0, out=u)
+            q = self._centerline_seg_start + u.reshape(-1, 1) * self._centerline_seg_vec
+            delta = q - p.reshape(1, 3)
+            d2 = np.einsum('ij,ij->i', delta, delta)
+            q_s = self.centerline_cum[:self._centerline_seg_count] + u * self._centerline_seg_ds
+            forward_mm = delta @ forward_dir_vec
+            candidate_indices = np.flatnonzero(
+                (q_s + 1.0e-9 >= proj_s)
+                & (forward_mm + 1.0e-9 >= min_forward)
+            )
+            if candidate_indices.size > 0:
+                candidate_d2 = d2[candidate_indices]
+                best_d2 = float(np.min(candidate_d2))
+                tied = candidate_indices[candidate_d2 <= best_d2 + 1.0e-9]
+                best_idx = int(tied[np.argmin(forward_mm[tied])])
+                return q[best_idx].copy(), float(q_s[best_idx])
         target_s = float(np.clip(proj_s + min_forward, 0.0, self.path_len))
-        return _interp(self.centerline[:, :3], self.centerline_cum, target_s), target_s
+        return self._centerline_point_at_s(target_s), target_s
 
     def _nominal_centerline_frame(self, nominal_s: float) -> Tuple[np.ndarray, float, float]:
         """
         闁诡儸鍡楀幋濞村吋锚鐎垫煡鏁?        閻庣敻鈧稓鑹炬慨锝呯箰閹舵岸濡存担鍦Ж闁煎搫鍊婚崑锝夋儍閸曨喖骞囬柛鎰噹閻ｃ劑宕楅妸锕€顫岀憸鐗堝敾缁辨繃绋夊鍛櫃闁?O(N_centerline) 闁汇劌瀚〒鑸垫交閹寸姴浠柟鍏肩矌閸屻劑鏁?        闁兼澘鏈Σ鎼佹儎鐎涙ê澶嶅ù锝堟硶閺併倗鎷犻妷銊ノ濋柣鎰贡濞堟垿宕ュ鍕枀鐎殿啫鍥ㄦ瘣 `nominal_s` 闁革负鍔嬮懙鎴ｇ疀閸愵亜娈犲☉鎾筹攻瑜板啴宕愮粭琛″亾?
         閺夆晜鐟╅崳鐑芥儍閸曨喕鎹嶉悹鎰剁到瑜把囧及椤栨せ鍋撳鍫熜╃紒灞界仢椤ュ棝宕楀鍐亢闁炽儲绻愮槐婵囩▔瀹ュ棙笑缂侇喖澧介垾妯尖偓浣冨閸╁懘鏁嶇仦鑺ョ婵縿鍊撴繛鍥偨閵娿儲鍊冲☉鏂款槸婵剟姊归懗顖滅濞磋壈澹堥崘缁樺緞閻斿懙鏃傗偓瑙勭啲缁?        濞戞梻鍠曢崗姗€寮伴幑鎰暱闂傚嫬绉崇紞?Python 闁硅矇鍐ㄧ厬闁革絻鍔庡▓鎴︽倻椤撶姴浠€殿喒鍋撻梺搴撳亾闁?        """
         proj_s = float(np.clip(nominal_s, 0.0, self.path_len))
-        q = _interp(self.centerline[:, :3], self.centerline_cum, proj_s)
-        radius = float(np.interp(proj_s, self.centerline_cum, self.fast_lumen_profile_mm))
+        q = self._centerline_point_at_s(proj_s)
+        radius = self._centerline_radius_at_s(proj_s)
         return q, proj_s, radius
 
     def _centerline_tangent(self, nominal_s: float) -> np.ndarray:
@@ -1584,8 +1644,8 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         s1 = float(np.clip(nominal_s + ds, 0.0, self.path_len))
         if s1 <= s0 + 1.0e-9:
             return self.insertion_direction.copy()
-        p0 = _interp(self.centerline[:, :3], self.centerline_cum, s0)
-        p1 = _interp(self.centerline[:, :3], self.centerline_cum, s1)
+        p0 = self._centerline_point_at_s(s0)
+        p1 = self._centerline_point_at_s(s1)
         tan = _normalize(p1 - p0)
         return tan if np.linalg.norm(tan) > 1.0e-12 else self.insertion_direction.copy()
 
@@ -2178,41 +2238,45 @@ class GuidewireControllerBase(Sofa.Core.Controller):
     def _pre_entry_access_point(self, nominal_s: float) -> np.ndarray:
         return self.entry_point + float(nominal_s) * self.insertion_direction
 
-    def _strict_native_surface_guard_eligible(self, point: np.ndarray | None, nominal_s: float) -> bool:
+    def _strict_native_surface_guard_projection(
+        self,
+        point: np.ndarray | None,
+        nominal_s: float,
+    ) -> tuple[bool, np.ndarray | None, float]:
         if nominal_s >= VIRTUAL_SHEATH_RELEASE_S_MM:
-            return True
+            return True, None, float(np.clip(nominal_s, 0.0, self.path_len))
         if (not self.is_native_strict) or point is None or self.centerline.shape[0] == 0:
-            return False
+            return False, None, float('nan')
 
         p = np.asarray(point, dtype=float).reshape(3)
         support_length_mm = max(float(ELASTICROD_STRICT_EXTERNAL_SUPPORT_EFFECTIVE_LENGTH_MM), 0.0)
         axial_mm = float(np.dot(p - self.entry_point, self.insertion_direction))
         if axial_mm < -(support_length_mm + 1.0e-9):
-            return False
+            return False, None, float('nan')
 
         q, proj_s = self._project_to_centerline(p)
         if not np.isfinite(proj_s):
-            return False
+            return False, None, float('nan')
         proj_s = float(np.clip(proj_s, 0.0, self.path_len))
-        if self.use_fast_lumen and self.fast_lumen_profile_mm.shape[0] == self.centerline.shape[0]:
-            radius_mm = float(np.interp(proj_s, self.centerline_cum, self.fast_lumen_profile_mm))
-        else:
-            radius_mm = float(self.entry_radius_mm)
+        radius_mm = self._centerline_radius_at_s(proj_s)
         radial_mm = float(np.linalg.norm(p - q))
         guard_margin_mm = max(0.50, float(self._contact_radius_mm() + ELASTICROD_STRICT_BARRIER_ACTIVATION_MARGIN_MM))
         if radial_mm > radius_mm + guard_margin_mm:
-            return False
+            return False, q, proj_s
         if axial_mm >= 0.0:
-            return True
+            return True, q, proj_s
 
         proximal_guard_mm = support_length_mm + max(0.5 * self.rest_spacing_mm, 0.5)
-        return proj_s <= proximal_guard_mm + 1.0e-9
+        return proj_s <= proximal_guard_mm + 1.0e-9, q, proj_s
+
+    def _strict_native_surface_guard_eligible(self, point: np.ndarray | None, nominal_s: float) -> bool:
+        return bool(self._strict_native_surface_guard_projection(point, nominal_s)[0])
 
     def _point_wall_clearance(self, point: np.ndarray, nominal_s: float, exact_projection: bool = False) -> float:
         if self._use_pre_entry_access_guide(nominal_s):
             axis_point = self._pre_entry_access_point(nominal_s)
             return -float(np.linalg.norm(np.asarray(point, dtype=float).reshape(3) - axis_point))
-        strict_surface_guard = self._strict_native_surface_guard_eligible(point, nominal_s)
+        strict_surface_guard, guard_q, guard_proj_s = self._strict_native_surface_guard_projection(point, nominal_s)
         if nominal_s < VIRTUAL_SHEATH_RELEASE_S_MM and not strict_surface_guard:
             return float('inf')
         if self.is_native_strict and strict_surface_guard and nominal_s < VIRTUAL_SHEATH_RELEASE_S_MM:
@@ -2222,8 +2286,11 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         profile_clearance = float('inf')
         if (nominal_s >= 0.0 or strict_surface_guard) and self.use_fast_lumen:
             if exact_projection or nominal_s < VIRTUAL_SHEATH_RELEASE_S_MM:
-                q, proj_s = self._project_to_centerline(point)
-                radius = float(np.interp(proj_s, self.centerline_cum, self.fast_lumen_profile_mm))
+                if guard_q is not None and np.isfinite(guard_proj_s):
+                    q, proj_s = guard_q, guard_proj_s
+                else:
+                    q, proj_s = self._project_to_centerline(point)
+                radius = self._centerline_radius_at_s(proj_s)
             else:
                 q, proj_s, radius = self._nominal_centerline_frame(nominal_s)
             radial = float(np.linalg.norm(np.asarray(point, dtype=float).reshape(3) - q))
@@ -2431,7 +2498,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         surface_query: tuple[float, np.ndarray] | None = None,
         exact_projection: bool = False,
     ) -> tuple[float, np.ndarray, np.ndarray] | None:
-        strict_surface_guard = self._strict_native_surface_guard_eligible(point, nominal_s)
+        strict_surface_guard, guard_q, guard_proj_s = self._strict_native_surface_guard_projection(point, nominal_s)
         if self.vessel_surface_query is None or (nominal_s < VIRTUAL_SHEATH_RELEASE_S_MM and not strict_surface_guard):
             return None
 
@@ -2442,7 +2509,10 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         _, closest = query_result
 
         if exact_projection or not self.use_fast_lumen or nominal_s < VIRTUAL_SHEATH_RELEASE_S_MM:
-            q, proj_s = self._project_to_centerline(p)
+            if guard_q is not None and np.isfinite(guard_proj_s):
+                q, proj_s = guard_q, guard_proj_s
+            else:
+                q, proj_s = self._project_to_centerline(p)
         else:
             q, proj_s, _ = self._nominal_centerline_frame(nominal_s)
 
@@ -2674,6 +2744,8 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 # Near the first bend, two interior samples can miss a soft
                 # magnetic head grazing the wall between nodes. Probe the full
                 # head edge more densely so strict contact stays continuous.
+                if self.node_count >= 100:
+                    return (0.15, 0.35, 0.50, 0.65, 0.85)
                 return (0.10, 0.25, 1.0 / 3.0, 0.50, 2.0 / 3.0, 0.75, 0.90)
             return (0.10, 0.25, 0.50, 0.75, 0.90)
         return (0.5,)
@@ -2692,7 +2764,14 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             )
         elif self.is_native_strict and self.use_native_gui_wallclock_control:
             refresh_stride = (
-                1
+                (
+                    1
+                    if (
+                        self.wall_contact_active
+                        or self._native_strict_barrier_active_node_count() > int(ELASTICROD_STRICT_GUI_GUIDED_CONTACT_MAX_BARRIER_NODES)
+                    )
+                    else 2
+                )
                 if near_contact
                 else (
                     max(int(ELASTICROD_STRICT_GUI_SURFACE_REFRESH_NEAR_STEPS), 1)
@@ -4524,6 +4603,16 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 )
             )
         )
+        strict_bend_contact_can_stay_transition = bool(
+            self.is_native_strict
+            and self.use_native_gui_wallclock_control
+            and (not wall_contact)
+            and barrier_nodes <= int(ELASTICROD_STRICT_GUI_GUIDED_CONTACT_MAX_BARRIER_NODES)
+            and np.isfinite(clearance)
+            and clearance >= max(float(ELASTICROD_STRICT_TIP_WALL_CONTACT_EXIT_MM) - 0.05, 0.46)
+            and max_head_stretch <= max(0.90 * head_stretch_soft_limit, 0.022)
+            and max_stretch <= 0.03
+        )
         strict_near_wall_bend_preview = bool(
             self.is_native_strict
             and np.isfinite(clearance)
@@ -4534,6 +4623,20 @@ class GuidewireControllerBase(Sofa.Core.Controller):
                 or max_head_stretch >= 0.010
                 or max_stretch >= 0.014
             )
+        )
+        strict_near_wall_bend_can_stay_transition = bool(
+            self.is_native_strict
+            and self.use_native_gui_wallclock_control
+            and (not wall_contact)
+            and barrier_nodes <= int(ELASTICROD_STRICT_GUI_GUIDED_CONTACT_MAX_BARRIER_NODES)
+            and np.isfinite(clearance)
+            and clearance >= max(float(ELASTICROD_STRICT_TIP_WALL_CONTACT_EXIT_MM) - 0.02, 0.36)
+            and (
+                (not np.isfinite(strict_wall_gap))
+                or strict_wall_gap >= max(float(ELASTICROD_STRICT_GUI_LIGHT_CONTACT_WALL_GAP_MM), 0.18)
+            )
+            and max_head_stretch <= max(0.65 * head_stretch_soft_limit, 0.016)
+            and max_stretch <= 0.024
         )
         actual_wall_gap = (
             self._native_strict_actual_wall_gap_mm()
@@ -4580,8 +4683,12 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             if strict_contact_active:
                 return choose_band('contact', 'barrierContact')
             if strict_bend_contact_hold:
+                if strict_bend_contact_can_stay_transition:
+                    return choose_band('transition', 'bendContactHold')
                 return choose_band('contact', 'bendContactHold')
             if strict_near_wall_bend_preview:
+                if strict_near_wall_bend_can_stay_transition:
+                    return choose_band('transition', 'nearWallBendPreview')
                 return choose_band('contact', 'nearWallBendPreview')
             if recent_contact_damping:
                 return choose_band('contact', 'recentContactDamping')
@@ -4612,8 +4719,12 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             if strict_contact_active:
                 return choose_band('contact', 'barrierContact')
             if strict_bend_contact_hold:
+                if strict_bend_contact_can_stay_transition:
+                    return choose_band('transition', 'bendContactHold')
                 return choose_band('contact', 'bendContactHold')
             if strict_near_wall_bend_preview:
+                if strict_near_wall_bend_can_stay_transition:
+                    return choose_band('transition', 'nearWallBendPreview')
                 return choose_band('contact', 'nearWallBendPreview')
             if recent_contact_damping:
                 return choose_band('contact', 'recentContactDamping')
@@ -4643,8 +4754,12 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         if strict_contact_active:
             return choose_band('contact', 'barrierContact')
         if strict_bend_contact_hold:
+            if strict_bend_contact_can_stay_transition:
+                return choose_band('transition', 'bendContactHold')
             return choose_band('contact', 'bendContactHold')
         if strict_near_wall_bend_preview:
+            if strict_near_wall_bend_can_stay_transition:
+                return choose_band('transition', 'nearWallBendPreview')
             return choose_band('contact', 'nearWallBendPreview')
         if recent_contact_damping:
             return choose_band('contact', 'recentContactDamping')
@@ -5757,7 +5872,7 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         else:
             self._fallback_nav_s_mm = max(self._fallback_nav_s_mm, float(proj_s))
             lookahead_s = float(np.clip(self._fallback_nav_s_mm + MAGNETIC_LOOKAHEAD_DISTANCE_MM, 0.0, self.path_len))
-        target_point = _interp(self.centerline[:, :3], self.centerline_cum, lookahead_s)
+        target_point = self._centerline_point_at_s(lookahead_s)
         center_pull = proj_point - np.asarray(tip_pos, dtype=float).reshape(3)
         forward_pull = target_point - proj_point
         if self.use_native_displacement_feed:
@@ -5772,20 +5887,14 @@ class GuidewireControllerBase(Sofa.Core.Controller):
 
     def _fallback_nearest_segment_tangent(self, tip_pos: np.ndarray) -> np.ndarray:
         tip = np.asarray(tip_pos, dtype=float).reshape(3)
-        if self.centerline.shape[0] < 2:
+        if self._centerline_seg_count <= 0:
             return self.insertion_direction.copy()
 
-        min_distance = float('inf')
-        contact_index = 0
-        for i in range(self.centerline.shape[0] - 1):
-            a = self.centerline[i, :3]
-            b = self.centerline[i + 1, :3]
-            x_current_dis = 0.5 * (float(np.linalg.norm(tip - a)) + float(np.linalg.norm(tip - b)))
-            if x_current_dis < min_distance:
-                min_distance = x_current_dis
-                contact_index = i
-
-        tangent = _normalize(self.centerline[contact_index + 1, :3] - self.centerline[contact_index, :3])
+        tip_row = tip.reshape(1, 3)
+        start_dist = np.linalg.norm(tip_row - self._centerline_seg_start, axis=1)
+        end_dist = np.linalg.norm(tip_row - (self._centerline_seg_start + self._centerline_seg_vec), axis=1)
+        contact_index = int(np.argmin(0.5 * (start_dist + end_dist)))
+        tangent = self._centerline_seg_dir[contact_index]
         return tangent if np.linalg.norm(tangent) > 1e-12 else self.insertion_direction.copy()
 
     def _apply_python_magnetic_fallback(self, tip_pos: np.ndarray, tip_dir: np.ndarray) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
