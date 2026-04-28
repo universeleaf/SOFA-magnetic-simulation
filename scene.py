@@ -292,6 +292,8 @@ def _add_external_magnetic_force(
             strictPhysicalTorqueOnly=bool(strict_physical_torque_only),
             externalFieldScale=1.0,
             externalControlDt=0.0,
+            useExternalTargetDirection=False,
+            externalTargetDirection=insertion_dir.tolist(),
             debugTargetPoint=centerline[0, :3].tolist(),
             debugLookAheadPoint=centerline[min(1, centerline.shape[0] - 1), :3].tolist(),
             debugBaVector=insertion_dir.tolist(),
@@ -1418,6 +1420,28 @@ def createScene(root: Sofa.Core.Node):
 
     root.bbox = np.stack((scene_min, scene_max))
     root.bbox.value = [scene_min.tolist(), scene_max.tolist()]
+
+
+def get_rl_handles(root: Sofa.Core.Node) -> dict[str, object]:
+    controller = root.getObject('GuidewireNavigationController')
+    centerline_node = root.getChild('Centerline')
+    centerline_dofs = centerline_node.getObject('dofs')
+    centerline_points = np.asarray(centerline_dofs.findData('position').value, dtype=float)
+    target_point = (
+        centerline_points[-1, :3].copy()
+        if centerline_points.ndim == 2 and centerline_points.shape[0] > 0
+        else np.zeros(3, dtype=float)
+    )
+    try:
+        dt_value = float(root.dt.value)
+    except Exception:
+        dt_value = float(ELASTICROD_ACTIVE_DT_S if GUIDEWIRE_BACKEND == 'elasticrod' else BEAM_ACTIVE_DT_S)
+    return {
+        'controller': controller,
+        'centerline_points': centerline_points,
+        'target_point': target_point,
+        'dt': dt_value,
+    }
 
     print('=' * 72)
     print(f'[guidewire_navigation] {backend["backend_name"]} scene loaded')

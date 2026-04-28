@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import copy
 import sys
 import time
 import os
 from pathlib import Path
-from typing import Tuple
+from typing import Any, Tuple
 
 import numpy as np
 
@@ -304,7 +305,9 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         self.wire_mech = wire_mech
         self.proximal_push_ff = proximal_push_ff
         self._proximal_push_indices_data = proximal_push_ff.findData('indices') if proximal_push_ff is not None else None
+        self._proximal_push_forces_data = proximal_push_ff.findData('forces') if proximal_push_ff is not None else None
         self.tip_torque_ff = tip_torque_ff
+        self._tip_torque_forces_data = tip_torque_ff.findData('forces') if tip_torque_ff is not None else None
         self.rod_model = rod_model
         self.native_mass = native_mass
         self.native_axial_assist_ff = native_axial_assist_ff
@@ -472,13 +475,24 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         self._debug_entry_release_alpha = magnetic_force_field.findData('debugEntryReleaseAlpha') if magnetic_force_field is not None else None
         self._debug_recentering_alpha = magnetic_force_field.findData('debugRecenteringAlpha') if magnetic_force_field is not None else None
         self._native_br_vector = magnetic_force_field.findData('brVector') if magnetic_force_field is not None else None
+        self._native_ba_vector_ref = magnetic_force_field.findData('baVectorRef') if magnetic_force_field is not None else None
         self._native_external_field_scale = magnetic_force_field.findData('externalFieldScale') if magnetic_force_field is not None else None
         self._native_external_control_dt = magnetic_force_field.findData('externalControlDt') if magnetic_force_field is not None else None
+        self._native_use_external_target_direction = (
+            magnetic_force_field.findData('useExternalTargetDirection') if magnetic_force_field is not None else None
+        )
+        self._native_external_target_direction = (
+            magnetic_force_field.findData('externalTargetDirection') if magnetic_force_field is not None else None
+        )
         self._native_external_surface_clearance = magnetic_force_field.findData('externalSurfaceClearanceMm') if magnetic_force_field is not None else None
         self._native_external_surface_contact_active = magnetic_force_field.findData('externalSurfaceContactActive') if magnetic_force_field is not None else None
         self._native_nominal_br_vector = (
             np.asarray(self._native_br_vector.value, dtype=float).reshape(3).copy()
             if self._native_br_vector is not None else np.zeros(3, dtype=float)
+        )
+        self._native_nominal_ba_vector_ref = (
+            np.asarray(self._native_ba_vector_ref.value, dtype=float).reshape(3).copy()
+            if self._native_ba_vector_ref is not None else self.insertion_direction.copy()
         )
         self._native_commanded_insertion = rod_model.findData('commandedInsertion') if rod_model is not None else None
         self._native_commanded_twist = rod_model.findData('commandedTwist') if rod_model is not None else None
@@ -728,6 +742,32 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         self._fallback_head_model = None
         self._fallback_field_controller = None
         self._fallback_torque_weights = np.zeros(0, dtype=float)
+        self.rl_control_enabled = False
+        self.rl_success_threshold_mm = 6.0
+        self.rl_field_lookahead_mm = max(10.0, 3.0 * self.rest_spacing_mm)
+        self.rl_goal_point = (
+            self.centerline[-1, :3].copy()
+            if self.centerline.ndim == 2 and self.centerline.shape[0] > 0
+            else self.entry_point.copy()
+        )
+        self.rl_local_target_point = self.rl_goal_point.copy()
+        self.rl_action = np.zeros(3, dtype=float)
+        self.rl_last_desired_field_dir = self.insertion_direction.copy()
+        self.rl_last_centerline_tangent = self.insertion_direction.copy()
+        self.rl_last_inward_dir = _normalize(
+            np.cross(
+                self.insertion_direction,
+                np.array([0.0, 0.0, 1.0], dtype=float),
+            )
+        )
+        if np.linalg.norm(self.rl_last_inward_dir) < 1.0e-12:
+            self.rl_last_inward_dir = np.array([1.0, 0.0, 0.0], dtype=float)
+        self.rl_last_binormal_dir = _normalize(np.cross(self.insertion_direction, self.rl_last_inward_dir))
+        if np.linalg.norm(self.rl_last_binormal_dir) < 1.0e-12:
+            self.rl_last_binormal_dir = np.array([0.0, 1.0, 0.0], dtype=float)
+        self.rl_last_local_target_s_mm = 0.0
+        self._rl_command_cache_step = -1
+        self._rl_command_cache: dict[str, Any] | None = None
         self.sim_time_s = 0.0
         self._native_control_dt_s = 0.0
         self._native_control_time_mode = 'solver'
@@ -817,6 +857,330 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         self._refresh_native_visual_sync_targets()
         self._update_target_marker(self.entry_point)
         self._write_native_virtual_sheath_targets()
+        self._capture_rl_reset_snapshot()
+
+    def _copy_reset_snapshot_value(self, value: Any) -> Any:
+        if isinstance(value, np.ndarray):
+            return np.array(value, copy=True)
+        return copy.deepcopy(value)
+
+    def _is_reset_snapshot_value(self, value: Any) -> bool:
+        if isinstance(value, (bool, int, float, str, type(None), np.generic)):
+            return True
+        if isinstance(value, np.ndarray):
+            return True
+        if isinstance(value, list):
+            return all(self._is_reset_snapshot_value(item) for item in value)
+        if isinstance(value, tuple):
+            return all(self._is_reset_snapshot_value(item) for item in value)
+        if isinstance(value, dict):
+            return all(
+                isinstance(key, str) and self._is_reset_snapshot_value(item)
+                for key, item in value.items()
+            )
+        return False
+
+    def _runtime_reset_snapshot_skip_names(self) -> set[str]:
+        return {
+            'root_node',
+            'constraint_solver',
+            'wire_mech',
+            'proximal_push_ff',
+            'tip_torque_ff',
+            'rod_model',
+            'native_mass',
+            'native_axial_assist_ff',
+            'magnetic_force_field',
+            'vessel_surface_query',
+            'vessel_vertices',
+            'vessel_faces',
+            'centerline',
+            '_centerline_points',
+            'centerline_cum',
+            '_centerline_seg_start',
+            '_centerline_seg_vec',
+            '_centerline_seg_ds',
+            '_centerline_seg_len2',
+            '_centerline_seg_len',
+            '_centerline_seg_dir',
+            'pre_entry_guard_vertices',
+            'fast_lumen_profile_mm',
+            '_native_visual_sync_targets',
+            '_fallback_head_model',
+            '_fallback_field_controller',
+            '_rl_reset_runtime_state',
+            '_rl_reset_scene_data_state',
+        }
+
+    def _capture_runtime_reset_state(self) -> dict[str, Any]:
+        state: dict[str, Any] = {}
+        skip_names = self._runtime_reset_snapshot_skip_names()
+        for name, value in self.__dict__.items():
+            if name in skip_names:
+                continue
+            if self._is_reset_snapshot_value(value):
+                state[name] = self._copy_reset_snapshot_value(value)
+        return state
+
+    def _capture_scene_data_reset_state(self) -> dict[str, Any]:
+        data_objects = {
+            'wire_position': self._pos,
+            'wire_rest_position': self._rest,
+            'wire_velocity': self._vel,
+            'rod_state_position': self._rod_state_pos,
+            'rod_state_velocity': self._rod_state_vel,
+            'rod_state_free_position': self._rod_state_free_pos,
+            'rod_state_free_velocity': self._rod_state_free_vel,
+            'target_marker_position': self._target_marker_pos,
+            'force_arrow_position': self._force_arrow_pos,
+            'camera_position': self._camera_position,
+            'camera_lookat': self._camera_lookat,
+            'debug_target_point': self._debug_target_point,
+            'debug_lookahead_point': self._debug_lookahead_point,
+            'debug_ba_vector': self._debug_ba_vector,
+            'debug_force_vector': self._debug_force_vector,
+            'debug_torque_vector': self._debug_torque_vector,
+            'debug_magnetic_moment_vector': self._debug_magnetic_moment_vector,
+            'debug_torque_sin': self._debug_torque_sin,
+            'debug_assist_force_vector': self._debug_assist_force_vector,
+            'debug_outward_assist_component': self._debug_outward_assist_component,
+            'debug_distal_tangent_field_angle_deg': self._debug_distal_tangent_field_angle_deg,
+            'debug_upcoming_turn_deg': self._debug_upcoming_turn_deg,
+            'debug_bend_severity': self._debug_bend_severity,
+            'debug_scheduled_field_scale': self._debug_scheduled_field_scale,
+            'debug_scheduled_field_scale_base': self._debug_scheduled_field_scale_base,
+            'debug_strict_steering_need_alpha': self._debug_strict_steering_need_alpha,
+            'debug_entry_release_alpha': self._debug_entry_release_alpha,
+            'debug_recentering_alpha': self._debug_recentering_alpha,
+            'proximal_push_indices': self._proximal_push_indices_data,
+            'proximal_push_forces': self._proximal_push_forces_data,
+            'tip_torque_forces': self._tip_torque_forces_data,
+            'native_axial_assist_indices': self._native_axial_assist_indices_data,
+            'native_br_vector': self._native_br_vector,
+            'native_ba_vector_ref': self._native_ba_vector_ref,
+            'native_external_field_scale': self._native_external_field_scale,
+            'native_external_control_dt': self._native_external_control_dt,
+            'native_use_external_target_direction': self._native_use_external_target_direction,
+            'native_external_target_direction': self._native_external_target_direction,
+            'native_external_surface_clearance': self._native_external_surface_clearance,
+            'native_external_surface_contact_active': self._native_external_surface_contact_active,
+            'native_commanded_insertion': self._native_commanded_insertion,
+            'native_commanded_twist': self._native_commanded_twist,
+            'native_insertion_direction': self._native_insertion_direction,
+            'native_virtual_sheath_target_pos': self._native_virtual_sheath_target_pos,
+            'native_virtual_sheath_target_rest': self._native_virtual_sheath_target_rest,
+        }
+        snapshot: dict[str, Any] = {}
+        for name, data in data_objects.items():
+            if data is None:
+                continue
+            try:
+                snapshot[name] = self._copy_reset_snapshot_value(_read(data))
+            except Exception:
+                continue
+        return snapshot
+
+    def _restore_data_snapshot(self, data, snapshot: Any) -> None:
+        if data is None:
+            return
+        restored = self._copy_reset_snapshot_value(snapshot)
+        if isinstance(restored, np.ndarray):
+            try:
+                with _writeable(data) as out:
+                    out[:] = restored
+                return
+            except Exception:
+                restored = restored.tolist()
+        try:
+            data.value = restored
+        except Exception:
+            pass
+
+    def _restore_scene_data_reset_state(self) -> None:
+        data_objects = {
+            'wire_position': self._pos,
+            'wire_rest_position': self._rest,
+            'wire_velocity': self._vel,
+            'rod_state_position': self._rod_state_pos,
+            'rod_state_velocity': self._rod_state_vel,
+            'rod_state_free_position': self._rod_state_free_pos,
+            'rod_state_free_velocity': self._rod_state_free_vel,
+            'target_marker_position': self._target_marker_pos,
+            'force_arrow_position': self._force_arrow_pos,
+            'camera_position': self._camera_position,
+            'camera_lookat': self._camera_lookat,
+            'debug_target_point': self._debug_target_point,
+            'debug_lookahead_point': self._debug_lookahead_point,
+            'debug_ba_vector': self._debug_ba_vector,
+            'debug_force_vector': self._debug_force_vector,
+            'debug_torque_vector': self._debug_torque_vector,
+            'debug_magnetic_moment_vector': self._debug_magnetic_moment_vector,
+            'debug_torque_sin': self._debug_torque_sin,
+            'debug_assist_force_vector': self._debug_assist_force_vector,
+            'debug_outward_assist_component': self._debug_outward_assist_component,
+            'debug_distal_tangent_field_angle_deg': self._debug_distal_tangent_field_angle_deg,
+            'debug_upcoming_turn_deg': self._debug_upcoming_turn_deg,
+            'debug_bend_severity': self._debug_bend_severity,
+            'debug_scheduled_field_scale': self._debug_scheduled_field_scale,
+            'debug_scheduled_field_scale_base': self._debug_scheduled_field_scale_base,
+            'debug_strict_steering_need_alpha': self._debug_strict_steering_need_alpha,
+            'debug_entry_release_alpha': self._debug_entry_release_alpha,
+            'debug_recentering_alpha': self._debug_recentering_alpha,
+            'proximal_push_indices': self._proximal_push_indices_data,
+            'proximal_push_forces': self._proximal_push_forces_data,
+            'tip_torque_forces': self._tip_torque_forces_data,
+            'native_axial_assist_indices': self._native_axial_assist_indices_data,
+            'native_br_vector': self._native_br_vector,
+            'native_ba_vector_ref': self._native_ba_vector_ref,
+            'native_external_field_scale': self._native_external_field_scale,
+            'native_external_control_dt': self._native_external_control_dt,
+            'native_use_external_target_direction': self._native_use_external_target_direction,
+            'native_external_target_direction': self._native_external_target_direction,
+            'native_external_surface_clearance': self._native_external_surface_clearance,
+            'native_external_surface_contact_active': self._native_external_surface_contact_active,
+            'native_commanded_insertion': self._native_commanded_insertion,
+            'native_commanded_twist': self._native_commanded_twist,
+            'native_insertion_direction': self._native_insertion_direction,
+            'native_virtual_sheath_target_pos': self._native_virtual_sheath_target_pos,
+            'native_virtual_sheath_target_rest': self._native_virtual_sheath_target_rest,
+        }
+        for name, snapshot in self._rl_reset_scene_data_state.items():
+            self._restore_data_snapshot(data_objects.get(name), snapshot)
+
+    def _restore_runtime_reset_state(self) -> None:
+        for name, snapshot in self._rl_reset_runtime_state.items():
+            setattr(self, name, self._copy_reset_snapshot_value(snapshot))
+
+    def _capture_rl_reset_snapshot(self) -> None:
+        self._rl_reset_scene_data_state = self._capture_scene_data_reset_state()
+        self._rl_reset_runtime_state = self._capture_runtime_reset_state()
+        self._rl_reset_root_dt = None
+        self._rl_reset_solver_max_iterations = None
+        self._rl_reset_solver_tolerance = None
+        self._rl_reset_rod_model_dt = None
+        self._rl_reset_native_mass_dt = None
+        if self.root_node is not None:
+            try:
+                self._rl_reset_root_dt = float(self.root_node.findData('dt').value)
+            except Exception:
+                try:
+                    self._rl_reset_root_dt = float(self.root_node.dt.value)
+                except Exception:
+                    self._rl_reset_root_dt = None
+        if self.constraint_solver is not None:
+            try:
+                self._rl_reset_solver_max_iterations = int(self.constraint_solver.findData('maxIterations').value)
+            except Exception:
+                self._rl_reset_solver_max_iterations = None
+            try:
+                self._rl_reset_solver_tolerance = float(self.constraint_solver.findData('tolerance').value)
+            except Exception:
+                self._rl_reset_solver_tolerance = None
+        for attr_name, obj in (
+            ('_rl_reset_rod_model_dt', self.rod_model),
+            ('_rl_reset_native_mass_dt', self.native_mass),
+        ):
+            if obj is None:
+                continue
+            try:
+                setattr(self, attr_name, float(obj.findData('dt').value))
+            except Exception:
+                setattr(self, attr_name, None)
+
+    def reset_for_rl_episode(
+        self,
+        *,
+        target_point: np.ndarray | None = None,
+        success_threshold_mm: float | None = None,
+    ) -> None:
+        if not hasattr(self, '_rl_reset_runtime_state') or not hasattr(self, '_rl_reset_scene_data_state'):
+            raise RuntimeError('Guidewire controller reset snapshot is unavailable.')
+
+        self._restore_scene_data_reset_state()
+        self._restore_runtime_reset_state()
+
+        if self.root_node is not None and self._rl_reset_root_dt is not None:
+            try:
+                self.root_node.dt = float(self._rl_reset_root_dt)
+            except Exception:
+                pass
+            try:
+                dt_data = self.root_node.findData('dt')
+                if dt_data is not None:
+                    dt_data.value = float(self._rl_reset_root_dt)
+            except Exception:
+                pass
+
+        if self.constraint_solver is not None:
+            try:
+                max_iter_data = self.constraint_solver.findData('maxIterations')
+                if max_iter_data is not None and self._rl_reset_solver_max_iterations is not None:
+                    max_iter_data.value = int(self._rl_reset_solver_max_iterations)
+            except Exception:
+                pass
+            try:
+                tol_data = self.constraint_solver.findData('tolerance')
+                if tol_data is not None and self._rl_reset_solver_tolerance is not None:
+                    tol_data.value = float(self._rl_reset_solver_tolerance)
+            except Exception:
+                pass
+
+        for obj, reset_dt in (
+            (self.rod_model, self._rl_reset_rod_model_dt),
+            (self.native_mass, self._rl_reset_native_mass_dt),
+        ):
+            if obj is None or reset_dt is None:
+                continue
+            try:
+                dt_data = obj.findData('dt')
+                if dt_data is not None:
+                    dt_data.value = float(reset_dt)
+            except Exception:
+                pass
+
+        if self._fallback_field_controller is not None:
+            self._fallback_field_controller.filtered_direction = self.insertion_direction.copy()
+            try:
+                self._fallback_field_controller.field.set_direction(self.insertion_direction)
+            except Exception:
+                pass
+
+        self._refresh_native_visual_sync_targets()
+        self._invalidate_geometry_cache()
+        self._invalidate_surface_probe_cache()
+        self._invalidate_rl_command_cache()
+
+        if self.enable_native_virtual_sheath:
+            self._write_native_virtual_sheath_targets()
+
+        if self.is_native_realtime:
+            self._apply_native_runtime_settings()
+            self._native_runtime_settings_applied = True
+
+        if self.is_native_backend:
+            try:
+                self.rod_model.reinit()
+            except Exception as exc:
+                print(f'[WARN] [rl-reset] native rod reinit failed: {exc}')
+            self._sync_native_rod_to_display()
+
+        tip_pos, tip_quat = self._tip_pose()
+        self.prev_tip_pos = np.asarray(tip_pos, dtype=float).reshape(3).copy()
+        _, self.prev_tip_proj_s_mm = self._project_to_centerline(self.prev_tip_pos)
+        self._update_camera_follow(self.prev_tip_pos)
+        self._update_target_marker(self.entry_point)
+        self._update_force_arrow(self.insertion_direction)
+
+        self.enable_rl_control(
+            target_point=target_point,
+            success_threshold_mm=(
+                self.rl_success_threshold_mm
+                if success_threshold_mm is None
+                else float(success_threshold_mm)
+            ),
+        )
+        self._write_native_backend_commands()
+        self._sync_debug_visuals(self.prev_tip_pos, self._tip_dir(np.asarray(tip_quat, dtype=float)))
 
     def _node_s(self, idx: int) -> float:
         return float(self.node_initial_path_s_mm[idx] + self.estimated_push_mm)
@@ -890,6 +1254,314 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         self._geometry_cache_tip_projection = (np.asarray(projection[0], dtype=float).copy(), float(projection[1]))
         proj_point, proj_s = self._geometry_cache_tip_projection
         return np.asarray(proj_point, dtype=float).copy(), float(proj_s)
+
+    def _invalidate_rl_command_cache(self) -> None:
+        self._rl_command_cache_step = -1
+        self._rl_command_cache = None
+
+    def enable_rl_control(
+        self,
+        *,
+        target_point: np.ndarray | None = None,
+        success_threshold_mm: float = 6.0,
+    ) -> None:
+        goal = (
+            np.asarray(target_point, dtype=float).reshape(3).copy()
+            if target_point is not None
+            else (
+                self.centerline[-1, :3].copy()
+                if self.centerline.ndim == 2 and self.centerline.shape[0] > 0
+                else self.entry_point.copy()
+            )
+        )
+        self.rl_control_enabled = True
+        self.rl_success_threshold_mm = float(max(success_threshold_mm, 0.5))
+        self.rl_goal_point = goal
+        self.rl_local_target_point = goal.copy()
+        self.rl_action = np.zeros(3, dtype=float)
+        self.rl_last_desired_field_dir = self.insertion_direction.copy()
+        self.rl_last_centerline_tangent = self.insertion_direction.copy()
+        self.rl_last_local_target_s_mm = float(max(self.path_len, 0.0))
+        self._invalidate_rl_command_cache()
+        if self._native_use_external_target_direction is not None:
+            self._native_use_external_target_direction.value = bool(self.is_native_backend)
+        if self._native_external_target_direction is not None:
+            self._native_external_target_direction.value = self.insertion_direction.tolist()
+        self._update_target_marker(goal)
+
+    def set_rl_action(self, action: np.ndarray) -> None:
+        self.rl_action = np.clip(np.asarray(action, dtype=float).reshape(3), -1.0, 1.0)
+        self._invalidate_rl_command_cache()
+
+    def _rl_fallback_lateral_axis(self, tangent: np.ndarray) -> np.ndarray:
+        tangent = _normalize(np.asarray(tangent, dtype=float).reshape(3))
+        candidates = [
+            np.asarray(self.rl_last_inward_dir, dtype=float).reshape(3),
+            np.array([0.0, 0.0, 1.0], dtype=float),
+            np.array([0.0, 1.0, 0.0], dtype=float),
+            np.array([1.0, 0.0, 0.0], dtype=float),
+        ]
+        for candidate in candidates:
+            lateral = candidate - float(np.dot(candidate, tangent)) * tangent
+            lateral = _normalize(lateral)
+            if np.linalg.norm(lateral) > 1.0e-12:
+                return lateral
+        return np.array([1.0, 0.0, 0.0], dtype=float)
+
+    def _rl_navigation_frame(
+        self,
+        tip_pos: np.ndarray,
+        projection_point: np.ndarray,
+        projection_s_mm: float,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        tangent = self._centerline_tangent(projection_s_mm)
+        if np.linalg.norm(tangent) < 1.0e-12:
+            tangent = self.insertion_direction.copy()
+
+        inward = np.asarray(projection_point, dtype=float).reshape(3) - np.asarray(tip_pos, dtype=float).reshape(3)
+        inward = inward - float(np.dot(inward, tangent)) * tangent
+        inward = _normalize(inward)
+        if np.linalg.norm(inward) < 1.0e-12:
+            inward = self._rl_fallback_lateral_axis(tangent)
+
+        binormal = _normalize(np.cross(tangent, inward))
+        if np.linalg.norm(binormal) < 1.0e-12:
+            inward = self._rl_fallback_lateral_axis(tangent)
+            binormal = _normalize(np.cross(tangent, inward))
+        if np.linalg.norm(binormal) < 1.0e-12:
+            binormal = np.array([0.0, 1.0, 0.0], dtype=float)
+
+        inward = _normalize(np.cross(binormal, tangent))
+        if np.linalg.norm(inward) < 1.0e-12:
+            inward = self._rl_fallback_lateral_axis(tangent)
+        return tangent, inward, binormal
+
+    def _rl_command_state(
+        self,
+        tip_pos: np.ndarray | None = None,
+        tip_dir: np.ndarray | None = None,
+    ) -> dict[str, Any]:
+        if self._rl_command_cache_step == self.step_count and self._rl_command_cache is not None:
+            return self._rl_command_cache
+
+        if tip_pos is None or tip_dir is None:
+            tip_pos_fallback, tip_quat = self._tip_pose()
+            if tip_pos is None:
+                tip_pos = tip_pos_fallback
+            if tip_dir is None:
+                tip_dir = self._tip_dir(tip_quat)
+
+        tip_pos = np.asarray(tip_pos, dtype=float).reshape(3)
+        tip_dir = _normalize(np.asarray(tip_dir, dtype=float).reshape(3))
+        if np.linalg.norm(tip_dir) < 1.0e-12:
+            tip_dir = self.insertion_direction.copy()
+
+        if self.centerline.shape[0] > 0:
+            projection_point, projection_s_mm = self._project_to_centerline(tip_pos)
+            local_target_point, local_target_s_mm = self._forward_centerline_target(
+                tip_pos,
+                min_forward_mm=self.rl_field_lookahead_mm,
+                forward_dir=tip_dir,
+            )
+        else:
+            projection_point = tip_pos.copy()
+            projection_s_mm = 0.0
+            local_target_point = self.rl_goal_point.copy()
+            local_target_s_mm = 0.0
+
+        goal_point = np.asarray(self.rl_goal_point, dtype=float).reshape(3)
+        if np.linalg.norm(goal_point - tip_pos) <= self.rl_field_lookahead_mm:
+            local_target_point = goal_point.copy()
+            local_target_s_mm = float(max(self.path_len, projection_s_mm))
+
+        tangent, inward, binormal = self._rl_navigation_frame(
+            tip_pos,
+            projection_point,
+            projection_s_mm,
+        )
+        target_pull_dir = _normalize(local_target_point - tip_pos)
+        if np.linalg.norm(target_pull_dir) < 1.0e-12:
+            target_pull_dir = tangent
+        goal_dir = _normalize(goal_point - tip_pos)
+        if np.linalg.norm(goal_dir) < 1.0e-12:
+            goal_dir = tangent
+
+        action = np.clip(np.asarray(self.rl_action, dtype=float).reshape(3), -1.0, 1.0)
+        forward_gain = max(0.15, 1.0 + 0.65 * float(action[2]))
+        desired_field_dir = _normalize(
+            forward_gain * target_pull_dir
+            + 0.90 * float(action[0]) * inward
+            + 0.90 * float(action[1]) * binormal
+            + 0.18 * goal_dir
+        )
+        if np.linalg.norm(desired_field_dir) < 1.0e-12:
+            desired_field_dir = tangent
+
+        self.rl_local_target_point = np.asarray(local_target_point, dtype=float).reshape(3).copy()
+        self.rl_last_desired_field_dir = desired_field_dir.copy()
+        self.rl_last_centerline_tangent = tangent.copy()
+        self.rl_last_inward_dir = inward.copy()
+        self.rl_last_binormal_dir = binormal.copy()
+        self.rl_last_local_target_s_mm = float(local_target_s_mm)
+        cache = {
+            'tip_pos': tip_pos.copy(),
+            'tip_dir': tip_dir.copy(),
+            'goal_point': goal_point.copy(),
+            'projection_point': np.asarray(projection_point, dtype=float).reshape(3).copy(),
+            'projection_s_mm': float(projection_s_mm),
+            'local_target_point': np.asarray(local_target_point, dtype=float).reshape(3).copy(),
+            'local_target_s_mm': float(local_target_s_mm),
+            'centerline_tangent': tangent.copy(),
+            'inward_dir': inward.copy(),
+            'binormal_dir': binormal.copy(),
+            'desired_field_dir': desired_field_dir.copy(),
+            'target_pull_dir': target_pull_dir.copy(),
+            'goal_dir': goal_dir.copy(),
+            'action': action.copy(),
+        }
+        self._rl_command_cache_step = self.step_count
+        self._rl_command_cache = cache
+        return cache
+
+    def _rl_wall_clearance_mm(self) -> float:
+        candidates: list[float] = []
+        if self.is_native_strict:
+            physical_clearance = float(self._native_strict_physical_contact_clearance_mm())
+            if np.isfinite(physical_clearance):
+                candidates.append(physical_clearance)
+        for value in (
+            float(self.wall_contact_clearance_mm),
+            float(self.surface_wall_contact_clearance_mm),
+            float(self._head_wall_clearance()),
+        ):
+            if np.isfinite(value):
+                candidates.append(value)
+        return float(min(candidates)) if candidates else float('inf')
+
+    def _rl_contact_force_metrics(self) -> dict[str, float]:
+        barrier_force_vec = self._debug_vector(self._native_debug_barrier_force_vector, [0.0, 0.0, 0.0])
+        barrier_force_n = float(np.linalg.norm(barrier_force_vec))
+        boundary_force_n = max(float(self._native_debug_scalar(self._native_debug_max_boundary_force, default=0.0)), 0.0)
+        drive_reaction_n = max(float(self._native_debug_scalar(self._native_debug_drive_reaction, default=0.0)), 0.0)
+        wall_contact_force_n = max(barrier_force_n, boundary_force_n if self.wall_contact_active else 0.0)
+        contact_load_n = max(wall_contact_force_n, drive_reaction_n if self.wall_contact_active else 0.0)
+        return {
+            'wall_contact_force_n': float(wall_contact_force_n),
+            'contact_load_n': float(contact_load_n),
+            'barrier_force_n': float(barrier_force_n),
+            'boundary_force_n': float(boundary_force_n),
+            'drive_reaction_n': float(drive_reaction_n),
+        }
+
+    def _rl_magnetic_metrics(self) -> dict[str, Any]:
+        magnetic_force_vec = self._debug_vector(self._debug_force_vector, [0.0, 0.0, 0.0])
+        magnetic_assist_vec = self._debug_vector(self._debug_assist_force_vector, [0.0, 0.0, 0.0])
+        magnetic_torque_vec = self._debug_vector(self._debug_torque_vector, [0.0, 0.0, 0.0])
+        magnetic_field_dir = self._debug_vector(
+            self._debug_ba_vector,
+            self.rl_last_desired_field_dir if self.rl_control_enabled else self.insertion_direction,
+        )
+        total_force_vec = magnetic_force_vec + magnetic_assist_vec
+        return {
+            'magnetic_force_vector': np.asarray(total_force_vec, dtype=float).reshape(3),
+            'magnetic_tip_force_vector': np.asarray(magnetic_force_vec, dtype=float).reshape(3),
+            'magnetic_assist_force_vector': np.asarray(magnetic_assist_vec, dtype=float).reshape(3),
+            'magnetic_torque_vector': np.asarray(magnetic_torque_vec, dtype=float).reshape(3),
+            'magnetic_field_direction': _normalize(np.asarray(magnetic_field_dir, dtype=float).reshape(3)),
+            'magnetic_force_n': float(np.linalg.norm(total_force_vec)),
+            'magnetic_tip_force_n': float(np.linalg.norm(magnetic_force_vec)),
+            'magnetic_assist_force_n': float(np.linalg.norm(magnetic_assist_vec)),
+            'magnetic_torque_nm': float(np.linalg.norm(magnetic_torque_vec)),
+        }
+
+    def _rl_invalid_state(self) -> bool:
+        points_mm = self._current_points_mm()
+        if points_mm.ndim != 2 or points_mm.shape[0] == 0 or (not np.all(np.isfinite(points_mm))):
+            return True
+        if self.is_native_backend:
+            stretch = self._native_debug_array(self._native_debug_stretch)
+            if stretch.size > 0 and float(np.max(np.abs(stretch))) >= 1.2 * float(ELASTICROD_FAILFAST_MAX_STRETCH):
+                return True
+            head_stretch = float(self._native_strict_max_head_stretch())
+            if np.isfinite(head_stretch) and head_stretch >= max(2.0 * float(ELASTICROD_STRICT_HEAD_STRETCH_LIMIT), 0.10):
+                return True
+        return False
+
+    def get_rl_state(self) -> dict[str, Any]:
+        tip_pos, tip_quat = self._tip_pose()
+        tip_dir = self._tip_dir(tip_quat)
+        rl_command = self._rl_command_state(tip_pos, tip_dir)
+
+        goal_point = np.asarray(rl_command['goal_point'], dtype=float).reshape(3)
+        local_target_point = np.asarray(rl_command['local_target_point'], dtype=float).reshape(3)
+        projection_point = np.asarray(rl_command['projection_point'], dtype=float).reshape(3)
+        centerline_tangent = np.asarray(rl_command['centerline_tangent'], dtype=float).reshape(3)
+        target_delta = local_target_point - tip_pos
+        goal_delta = goal_point - tip_pos
+        distance_to_goal_mm = float(np.linalg.norm(goal_delta))
+        local_target_distance_mm = float(np.linalg.norm(target_delta))
+        centerline_offset_vec = tip_pos - projection_point
+        tip_centerline_offset_mm = float(np.linalg.norm(centerline_offset_vec))
+        wall_clearance_mm = float(self._rl_wall_clearance_mm())
+        contact_penetration_mm = float(max(-wall_clearance_mm, 0.0)) if np.isfinite(wall_clearance_mm) else 0.0
+        alignment_cos = float(
+            np.clip(
+                np.dot(
+                    _normalize(np.asarray(tip_dir, dtype=float).reshape(3)),
+                    _normalize(centerline_tangent),
+                ),
+                -1.0,
+                1.0,
+            )
+        )
+        contact_metrics = self._rl_contact_force_metrics()
+        magnetic_metrics = self._rl_magnetic_metrics()
+        barrier_active_nodes = max(self._native_strict_barrier_active_node_count(), 0) if self.is_native_backend else 0
+        max_internal_force_n = max(float(self._native_debug_scalar(self._native_debug_max_internal_force, default=0.0)), 0.0)
+        max_boundary_force_n = max(float(self._native_debug_scalar(self._native_debug_max_boundary_force, default=0.0)), 0.0)
+        max_stretch = 0.0
+        stretch_profile = self._native_debug_array(self._native_debug_stretch) if self.is_native_backend else np.zeros(0, dtype=float)
+        if stretch_profile.size > 0:
+            max_stretch = float(np.max(np.abs(stretch_profile)))
+        max_head_stretch = float(self._native_strict_max_head_stretch()) if self.is_native_backend else 0.0
+        success = bool(distance_to_goal_mm <= self.rl_success_threshold_mm)
+        invalid = bool(self._rl_invalid_state())
+        return {
+            'tip_position_mm': np.asarray(tip_pos, dtype=float).reshape(3).copy(),
+            'tip_direction': _normalize(np.asarray(tip_dir, dtype=float).reshape(3)),
+            'projection_point_mm': projection_point.copy(),
+            'projection_s_mm': float(rl_command['projection_s_mm']),
+            'centerline_tangent': _normalize(centerline_tangent),
+            'centerline_offset_vector_mm': np.asarray(centerline_offset_vec, dtype=float).reshape(3).copy(),
+            'tip_centerline_offset_mm': float(tip_centerline_offset_mm),
+            'centerline_alignment_cos': float(alignment_cos),
+            'target_position_mm': local_target_point.copy(),
+            'target_delta_mm': np.asarray(target_delta, dtype=float).reshape(3).copy(),
+            'goal_position_mm': goal_point.copy(),
+            'goal_delta_mm': np.asarray(goal_delta, dtype=float).reshape(3).copy(),
+            'distance_to_goal_mm': float(distance_to_goal_mm),
+            'local_target_distance_mm': float(local_target_distance_mm),
+            'wall_clearance_mm': float(wall_clearance_mm),
+            'contact_penetration_mm': float(contact_penetration_mm),
+            'tip_progress_mm': float(self.tip_progress_mm),
+            'tip_progress_raw_mm': float(self.tip_progress_raw_mm),
+            'estimated_push_mm': float(self.estimated_push_mm),
+            'commanded_push_mm': float(self.commanded_push_mm),
+            'beam_compression_mm': float(max(self.beam_compression_mm, 0.0)),
+            'beam_stall_active': bool(self.beam_stall_active),
+            'wall_contact_active': bool(self.wall_contact_active),
+            'barrier_active_node_count': int(barrier_active_nodes),
+            'max_internal_force_n': float(max_internal_force_n),
+            'max_boundary_force_n': float(max_boundary_force_n),
+            'max_stretch': float(max_stretch),
+            'max_head_stretch': float(max_head_stretch),
+            'success_threshold_mm': float(self.rl_success_threshold_mm),
+            'success': bool(success),
+            'invalid': bool(invalid),
+            'rl_action': np.asarray(self.rl_action, dtype=float).reshape(3).copy(),
+            **contact_metrics,
+            **magnetic_metrics,
+        }
 
     def _refresh_native_visual_sync_targets(self) -> None:
         self._native_visual_sync_targets = []
@@ -5171,6 +5843,17 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             self._native_commanded_twist.value = 0.0
         if self._native_br_vector is not None:
             self._native_br_vector.value = self._native_nominal_br_vector.tolist()
+        if self._native_use_external_target_direction is not None:
+            self._native_use_external_target_direction.value = bool(self.rl_control_enabled and self.is_native_backend)
+        if self.rl_control_enabled:
+            rl_command = self._rl_command_state()
+            desired_field_dir = np.asarray(rl_command['desired_field_dir'], dtype=float).reshape(3)
+            if self._native_external_target_direction is not None:
+                self._native_external_target_direction.value = desired_field_dir.tolist()
+            if self._native_ba_vector_ref is not None:
+                self._native_ba_vector_ref.value = desired_field_dir.tolist()
+        elif self._native_ba_vector_ref is not None:
+            self._native_ba_vector_ref.value = self._native_nominal_ba_vector_ref.tolist()
         if self._native_external_field_scale is not None:
             if self.is_native_strict:
                 self._native_external_field_scale.value = float(
@@ -5906,7 +6589,12 @@ class GuidewireControllerBase(Sofa.Core.Controller):
             return self._fallback_target_point, self._fallback_ba_vector, self._fallback_force_vector
 
         rigid = np.asarray(_read(self._pos), dtype=float)
-        target_point, target_dir = self._fallback_target_state(tip_pos)
+        if self.rl_control_enabled:
+            rl_command = self._rl_command_state(tip_pos, tip_dir)
+            target_point = np.asarray(rl_command['local_target_point'], dtype=float).reshape(3)
+            target_dir = np.asarray(rl_command['desired_field_dir'], dtype=float).reshape(3)
+        else:
+            target_point, target_dir = self._fallback_target_state(tip_pos)
         moment_dir = self._fallback_head_model.head_direction(rigid)
         if np.linalg.norm(moment_dir) < 1e-12:
             moment_dir = tip_dir
@@ -5947,9 +6635,22 @@ class GuidewireControllerBase(Sofa.Core.Controller):
         return self._fallback_target_point, self._fallback_ba_vector, self._fallback_force_vector
 
     def _sync_debug_visuals(self, tip_pos: np.ndarray, tip_dir: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+        rl_command = None
+        if self.rl_control_enabled:
+            if tip_dir is None:
+                tip_dir = self._tip_dir(np.asarray(self._tip_pose()[1], dtype=float))
+            rl_command = self._rl_command_state(tip_pos, tip_dir)
         if self.magnetic_force_field is not None:
-            target_point = self._debug_vector(self._debug_target_point, self.entry_point)
-            ba_vector = self._debug_vector(self._debug_ba_vector, self.insertion_direction)
+            target_point = self._debug_vector(
+                self._debug_target_point,
+                rl_command['local_target_point'] if rl_command is not None else self.entry_point,
+            )
+            if rl_command is not None:
+                target_point = np.asarray(rl_command['local_target_point'], dtype=float).reshape(3)
+            ba_vector = self._debug_vector(
+                self._debug_ba_vector,
+                rl_command['desired_field_dir'] if rl_command is not None else self.insertion_direction,
+            )
             raw_force_vector = self._debug_vector(
                 self._debug_force_vector,
                 ba_vector if np.linalg.norm(ba_vector) > 1e-12 else self.insertion_direction,

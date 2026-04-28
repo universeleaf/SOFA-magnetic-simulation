@@ -75,6 +75,8 @@ public:
     sofa::core::objectmodel::Data<bool> d_strictPhysicalTorqueOnly;
     sofa::core::objectmodel::Data<Real> d_externalFieldScale;
     sofa::core::objectmodel::Data<Real> d_externalControlDt;
+    sofa::core::objectmodel::Data<bool> d_useExternalTargetDirection;
+    sofa::core::objectmodel::Data<Vec3> d_externalTargetDirection;
     sofa::core::objectmodel::Data<Real> d_externalSurfaceClearanceMm;
     sofa::core::objectmodel::Data<bool> d_externalSurfaceContactActive;
     sofa::core::objectmodel::Data<Vec3> d_debugTargetPoint;

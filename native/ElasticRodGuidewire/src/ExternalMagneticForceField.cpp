@@ -243,6 +243,8 @@ ExternalMagneticForceField::ExternalMagneticForceField()
     , d_strictPhysicalTorqueOnly(initData(&d_strictPhysicalTorqueOnly, false, "strictPhysicalTorqueOnly", "If true, use the commanded field direction directly and disable torque-floor steering helpers."))
     , d_externalFieldScale(initData(&d_externalFieldScale, static_cast<Real>(1.0), "externalFieldScale", "External magnetic scale gate used by strict release control; 0 disables the field and resets the native ramp."))
     , d_externalControlDt(initData(&d_externalControlDt, static_cast<Real>(0.0), "externalControlDt", "Optional external control dt in seconds. When > 0, GUI wall-clock control time overrides solver dt for magnetic ramp and smoothing."))
+    , d_useExternalTargetDirection(initData(&d_useExternalTargetDirection, false, "useExternalTargetDirection", "Whether to override the internally tracked target field direction from Python/RL control."))
+    , d_externalTargetDirection(initData(&d_externalTargetDirection, Vec3(static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(1.0)), "externalTargetDirection", "Optional externally commanded magnetic field direction used when useExternalTargetDirection is true."))
     , d_externalSurfaceClearanceMm(initData(&d_externalSurfaceClearanceMm, std::numeric_limits<Real>::infinity(), "externalSurfaceClearanceMm", "Exact surface clearance from the Python controller in mm; used to keep strict steering/contact recovery aligned with the real vessel wall."))
     , d_externalSurfaceContactActive(initData(&d_externalSurfaceContactActive, false, "externalSurfaceContactActive", "Whether the Python controller currently detects exact surface contact on the tip/head."))
     , d_debugTargetPoint(initData(&d_debugTargetPoint, Vec3(static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(0.0)), "debugTargetPoint", "Debug forward-nearest centerline target point currently tracked by the native magnetic component."))
@@ -1188,7 +1190,18 @@ void ExternalMagneticForceField::addForce(const sofa::core::MechanicalParams* mp
     Vec3 targetPoint = coordCenter(q.back());
     Vec3 lookAheadPoint = targetPoint;
     const Vec3 nearestTangent = computeNearestTubeTangentDirection(q);
-    const Vec3 targetDirection = safeNormalize(computeLookAheadTargetDirection(q, targetPoint, &lookAheadPoint), nearestTangent);
+    const Vec3 nativeTargetDirection = safeNormalize(computeLookAheadTargetDirection(q, targetPoint, &lookAheadPoint), nearestTangent);
+    Vec3 targetDirection = nativeTargetDirection;
+    if (d_useExternalTargetDirection.getValue())
+    {
+        targetDirection = safeNormalize(d_externalTargetDirection.getValue(), nativeTargetDirection);
+        const Vec3 tipPosMm = kMToMm * coordCenter(q.back());
+        const Real externalLookAheadMm = std::max(
+            std::max(d_lookAheadDistance.getValue(), d_recoveryLookAheadDistance.getValue()),
+            static_cast<Real>(1.0));
+        targetPoint = tipPosMm + externalLookAheadMm * targetDirection;
+        lookAheadPoint = targetPoint;
+    }
 
     Vec3 aggregateMoment(static_cast<Real>(0.0), static_cast<Real>(0.0), static_cast<Real>(0.0));
     Vec3 distalTangent = nearestTangent;
